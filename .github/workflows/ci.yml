@@ -83,3 +83,33 @@ jobs:
         with:
           name: wheel-py${{ matrix.python-version }}
           path: target/wheels/*.whl
+
+  test-minimum-versions:
+    name: Test Minimum Versions (Python 3.11)
+    needs: test-python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python 3.11
+        run: uv python install 3.11
+
+      - name: Download wheel
+        uses: actions/download-artifact@v4
+        with:
+          name: wheel-py3.11
+          path: dist/
+
+      - name: Install wheel and minimum dependencies
+        run: |
+          uv venv --python 3.11
+          uv pip install "pytest>=8.0,<8.1" "pytest-asyncio>=0.24,<0.25" "hypothesis>=6.100,<6.101" "moto[dynamodb,server]>=5.0,<5.1" "boto3>=1.35,<1.36" "pydantic>=2.0,<2.1"
+          uv pip install dist/*.whl
+
+      - name: Run Python tests
+        run: uv run pytest tests/ -v
