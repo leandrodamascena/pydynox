@@ -417,6 +417,45 @@ impl DynamoClient {
     ) -> PyResult<()> {
         batch_operations::batch_write(py, &self.client, &self.runtime, table, put_items, delete_keys)
     }
+
+    /// Batch get items from a DynamoDB table.
+    ///
+    /// Gets multiple items in a single request. Handles:
+    /// - Splitting requests to respect the 100-item limit per batch
+    /// - Retrying unprocessed keys with exponential backoff
+    /// - Combining results from multiple requests
+    ///
+    /// # Arguments
+    ///
+    /// * `table` - The name of the DynamoDB table
+    /// * `keys` - List of keys to get (as dicts)
+    ///
+    /// # Returns
+    ///
+    /// A list of items (as dicts) that were found.
+    ///
+    /// # Examples
+    ///
+    /// ```python
+    /// client = DynamoClient()
+    ///
+    /// # Batch get items
+    /// keys = [
+    ///     {"pk": "USER#1", "sk": "PROFILE"},
+    ///     {"pk": "USER#2", "sk": "PROFILE"},
+    /// ]
+    /// items = client.batch_get("users", keys)
+    /// for item in items:
+    ///     print(item["name"])
+    /// ```
+    pub fn batch_get(
+        &self,
+        py: Python<'_>,
+        table: &str,
+        keys: &Bound<'_, pyo3::types::PyList>,
+    ) -> PyResult<Vec<Py<PyAny>>> {
+        batch_operations::batch_get(py, &self.client, &self.runtime, table, keys)
+    }
 }
 
 /// Build the AWS SDK DynamoDB client with the given configuration.

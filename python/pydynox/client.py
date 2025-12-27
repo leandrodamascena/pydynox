@@ -258,3 +258,37 @@ class DynamoClient:
             put_items or [],
             delete_keys or [],
         )
+
+    def batch_get(
+        self,
+        table: str,
+        keys: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Batch get items from a DynamoDB table.
+
+        Gets multiple items in a single request. Handles:
+        - Splitting requests to respect the 100-item limit per batch
+        - Retrying unprocessed keys with exponential backoff
+        - Combining results from multiple requests
+
+        Args:
+            table: The name of the DynamoDB table.
+            keys: List of keys to get (as dicts with hash key and optional range key).
+
+        Returns:
+            List of items that were found (as dicts). Items not found are not
+            included in the result. The order of items may not match the order
+            of keys.
+
+        Example:
+            >>> # Batch get items
+            >>> keys = [
+            ...     {"pk": "USER#1", "sk": "PROFILE"},
+            ...     {"pk": "USER#2", "sk": "PROFILE"},
+            ...     {"pk": "USER#3", "sk": "PROFILE"},
+            ... ]
+            >>> items = client.batch_get("users", keys)
+            >>> for item in items:
+            ...     print(item["name"])
+        """
+        return self._client.batch_get(table, keys)
