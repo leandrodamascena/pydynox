@@ -18,6 +18,25 @@ A fast DynamoDB ORM for Python with a Rust core.
 - Async support
 - Pydantic integration
 
+## Performance
+
+pydynox is faster than PynamoDB and boto3 in all operations. Benchmarks run against moto (local DynamoDB mock):
+
+| Operation (10x) | pydynox | PynamoDB | boto3 | vs PynamoDB | vs boto3 |
+|-----------------|---------|----------|-------|-------------|----------|
+| get_item | 13.1ms | 16.5ms | 16.8ms | **21% faster** | **22% faster** |
+| put_item | 14.5ms | 17.0ms | 17.0ms | **15% faster** | **15% faster** |
+| update_item | 18.6ms | 38.7ms | 21.6ms | **52% faster** | **14% faster** |
+| delete_item | 25.2ms | 33.8ms | 34.0ms | **25% faster** | **26% faster** |
+| query (100 items) | 12.9ms | 13.1ms | 13.3ms | **2% faster** | **3% faster** |
+
+Run benchmarks yourself:
+
+```bash
+uv run maturin develop --release
+uv run pytest benchmark/benchmark.py -v --benchmark-only
+```
+
 ## Installation
 
 ```bash

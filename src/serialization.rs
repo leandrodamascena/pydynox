@@ -85,31 +85,31 @@ pub fn py_to_dynamo<'py>(py: Python<'py>, obj: &Bound<'py, PyAny>) -> PyResult<P
 
     if obj.is_none() {
         result.set_item("NULL", true)?;
-    } else if let Ok(s) = obj.downcast::<PyString>() {
+    } else if let Ok(s) = obj.cast::<PyString>() {
         result.set_item("S", s.to_str()?)?;
-    } else if let Ok(b) = obj.downcast::<PyBool>() {
+    } else if let Ok(b) = obj.cast::<PyBool>() {
         // Note: PyBool check must come before PyInt because bool is a subclass of int
         result.set_item("BOOL", b.is_true())?;
-    } else if obj.downcast::<PyInt>().is_ok() || obj.downcast::<PyFloat>().is_ok() {
+    } else if obj.cast::<PyInt>().is_ok() || obj.cast::<PyFloat>().is_ok() {
         // DynamoDB stores numbers as strings
         result.set_item("N", obj.str()?.to_str()?)?;
-    } else if let Ok(bytes) = obj.downcast::<PyBytes>() {
+    } else if let Ok(bytes) = obj.cast::<PyBytes>() {
         // Binary data - encode as base64
         let base64 = PyModule::import(py, "base64")?;
         let encoded = base64.call_method1("b64encode", (bytes,))?;
         let encoded_str = encoded.call_method0("decode")?;
         result.set_item("B", encoded_str)?;
-    } else if let Ok(set) = obj.downcast::<PySet>() {
+    } else if let Ok(set) = obj.cast::<PySet>() {
         convert_set_to_dynamo(py, set.iter(), &result)?;
-    } else if let Ok(frozen_set) = obj.downcast::<PyFrozenSet>() {
+    } else if let Ok(frozen_set) = obj.cast::<PyFrozenSet>() {
         convert_set_to_dynamo(py, frozen_set.iter(), &result)?;
-    } else if let Ok(list) = obj.downcast::<PyList>() {
+    } else if let Ok(list) = obj.cast::<PyList>() {
         let items: Vec<Py<PyDict>> = list
             .iter()
             .map(|item| py_to_dynamo(py, &item))
             .collect::<PyResult<Vec<_>>>()?;
         result.set_item("L", items)?;
-    } else if let Ok(dict) = obj.downcast::<PyDict>() {
+    } else if let Ok(dict) = obj.cast::<PyDict>() {
         let map: HashMap<String, Py<PyDict>> = dict
             .iter()
             .map(|(k, v)| {
@@ -152,12 +152,12 @@ where
     // Check the type of the first element to determine set type
     let first = &items[0];
 
-    if first.downcast::<PyString>().is_ok() {
+    if first.cast::<PyString>().is_ok() {
         // String Set (SS)
         let strings: Vec<String> = items
             .iter()
             .map(|item| {
-                item.downcast::<PyString>()
+                item.cast::<PyString>()
                     .map_err(|_| {
                         PyErr::new::<pyo3::exceptions::PyTypeError, _>(
                             "String set must contain only strings",
@@ -167,12 +167,12 @@ where
             })
             .collect::<PyResult<Vec<_>>>()?;
         result.set_item("SS", strings)?;
-    } else if first.downcast::<PyInt>().is_ok() || first.downcast::<PyFloat>().is_ok() {
+    } else if first.cast::<PyInt>().is_ok() || first.cast::<PyFloat>().is_ok() {
         // Number Set (NS) - stored as strings
         let numbers: Vec<String> = items
             .iter()
             .map(|item| {
-                if item.downcast::<PyInt>().is_ok() || item.downcast::<PyFloat>().is_ok() {
+                if item.cast::<PyInt>().is_ok() || item.cast::<PyFloat>().is_ok() {
                     Ok(item.str()?.to_str()?.to_string())
                 } else {
                     Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
@@ -182,13 +182,13 @@ where
             })
             .collect::<PyResult<Vec<_>>>()?;
         result.set_item("NS", numbers)?;
-    } else if first.downcast::<PyBytes>().is_ok() {
+    } else if first.cast::<PyBytes>().is_ok() {
         // Binary Set (BS) - encode each as base64
         let base64 = PyModule::import(py, "base64")?;
         let binaries: Vec<String> = items
             .iter()
             .map(|item| {
-                let bytes = item.downcast::<PyBytes>().map_err(|_| {
+                let bytes = item.cast::<PyBytes>().map_err(|_| {
                     PyErr::new::<pyo3::exceptions::PyTypeError, _>(
                         "Binary set must contain only bytes",
                     )
@@ -252,7 +252,7 @@ where
 /// result = dynamo_to_py({"NULL": True})
 /// assert result is None
 /// ```
-pub fn dynamo_to_py(py: Python<'_>, attr: &Bound<'_, PyDict>) -> PyResult<PyObject> {
+pub fn dynamo_to_py(py: Python<'_>, attr: &Bound<'_, PyDict>) -> PyResult<Py<PyAny>> {
     // String
     if let Some(s) = attr.get_item("S")? {
         return Ok(s.unbind());
@@ -300,8 +300,8 @@ pub fn dynamo_to_py(py: Python<'_>, attr: &Bound<'_, PyDict>) -> PyResult<PyObje
     // List
     if let Some(list) = attr.get_item("L")? {
         let py_list = PyList::empty(py);
-        for item in list.downcast::<PyList>()?.iter() {
-            let dict = item.downcast::<PyDict>()?;
+        for item in list.cast::<PyList>()?.iter() {
+            let dict = item.cast::<PyDict>()?;
             py_list.append(dynamo_to_py(py, dict)?)?;
         }
         return Ok(py_list.unbind().into_any());
@@ -310,8 +310,8 @@ pub fn dynamo_to_py(py: Python<'_>, attr: &Bound<'_, PyDict>) -> PyResult<PyObje
     // Map
     if let Some(map) = attr.get_item("M")? {
         let py_dict = PyDict::new(py);
-        for (k, v) in map.downcast::<PyDict>()?.iter() {
-            let dict = v.downcast::<PyDict>()?;
+        for (k, v) in map.cast::<PyDict>()?.iter() {
+            let dict = v.cast::<PyDict>()?;
             py_dict.set_item(k, dynamo_to_py(py, dict)?)?;
         }
         return Ok(py_dict.unbind().into_any());
@@ -320,7 +320,7 @@ pub fn dynamo_to_py(py: Python<'_>, attr: &Bound<'_, PyDict>) -> PyResult<PyObje
     // String Set
     if let Some(ss) = attr.get_item("SS")? {
         let py_set = PySet::empty(py)?;
-        for item in ss.downcast::<PyList>()?.iter() {
+        for item in ss.cast::<PyList>()?.iter() {
             py_set.add(item)?;
         }
         return Ok(py_set.unbind().into_any());
@@ -329,7 +329,7 @@ pub fn dynamo_to_py(py: Python<'_>, attr: &Bound<'_, PyDict>) -> PyResult<PyObje
     // Number Set
     if let Some(ns) = attr.get_item("NS")? {
         let py_set = PySet::empty(py)?;
-        for item in ns.downcast::<PyList>()?.iter() {
+        for item in ns.cast::<PyList>()?.iter() {
             let n_str: String = item.extract()?;
             if n_str.contains('.') || n_str.contains('e') || n_str.contains('E') {
                 let f: f64 = n_str.parse().map_err(|_| {
@@ -356,7 +356,7 @@ pub fn dynamo_to_py(py: Python<'_>, attr: &Bound<'_, PyDict>) -> PyResult<PyObje
     if let Some(bs) = attr.get_item("BS")? {
         let base64 = PyModule::import(py, "base64")?;
         let py_set = PySet::empty(py)?;
-        for item in bs.downcast::<PyList>()?.iter() {
+        for item in bs.cast::<PyList>()?.iter() {
             let decoded = base64.call_method1("b64decode", (item,))?;
             py_set.add(decoded)?;
         }
@@ -398,7 +398,7 @@ pub fn py_to_dynamo_py(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<
 /// The corresponding Python value.
 #[pyfunction]
 #[pyo3(name = "dynamo_to_py")]
-pub fn dynamo_to_py_py(py: Python<'_>, attr: &Bound<'_, PyDict>) -> PyResult<PyObject> {
+pub fn dynamo_to_py_py(py: Python<'_>, attr: &Bound<'_, PyDict>) -> PyResult<Py<PyAny>> {
     dynamo_to_py(py, attr)
 }
 
@@ -468,7 +468,7 @@ pub fn item_from_dynamo(py: Python<'_>, item: &Bound<'_, PyDict>) -> PyResult<Py
     let result = PyDict::new(py);
     for (k, v) in item.iter() {
         let key: String = k.extract()?;
-        let attr = v.downcast::<PyDict>()?;
+        let attr = v.cast::<PyDict>()?;
         let value = dynamo_to_py(py, attr)?;
         result.set_item(key, value)?;
     }

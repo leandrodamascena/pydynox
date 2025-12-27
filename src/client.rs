@@ -15,7 +15,7 @@ use pyo3::types::PyDict;
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 
-use crate::operations::{attribute_values_to_py_dict, py_dict_to_attribute_values};
+use crate::basic_operations;
 
 /// DynamoDB client with flexible credential configuration.
 ///
@@ -152,42 +152,7 @@ impl DynamoClient {
     /// client.put_item("users", {"pk": "USER#123", "name": "John", "age": 30})
     /// ```
     pub fn put_item(&self, py: Python<'_>, table: &str, item: &Bound<'_, PyDict>) -> PyResult<()> {
-        let dynamo_item = py_dict_to_attribute_values(py, item)?;
-
-        let client = self.client.clone();
-        let table_name = table.to_string();
-
-        let result = self.runtime.block_on(async {
-            client
-                .put_item()
-                .table_name(table_name)
-                .set_item(Some(dynamo_item))
-                .send()
-                .await
-        });
-
-        match result {
-            Ok(_) => Ok(()),
-            Err(e) => {
-                let err_msg = e.to_string();
-                if err_msg.contains("ResourceNotFoundException") {
-                    Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                        "Table not found: {}",
-                        table
-                    )))
-                } else if err_msg.contains("ValidationException") {
-                    Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                        "Validation error: {}",
-                        err_msg
-                    )))
-                } else {
-                    Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                        "Failed to put item: {}",
-                        err_msg
-                    )))
-                }
-            }
-        }
+        basic_operations::put_item(py, &self.client, &self.runtime, table, item)
     }
 
     /// Get an item from a DynamoDB table by its key.
@@ -214,45 +179,188 @@ impl DynamoClient {
         py: Python<'_>,
         table: &str,
         key: &Bound<'_, PyDict>,
-    ) -> PyResult<Option<PyObject>> {
-        let dynamo_key = py_dict_to_attribute_values(py, key)?;
+    ) -> PyResult<Option<Py<PyAny>>> {
+        basic_operations::get_item(py, &self.client, &self.runtime, table, key)
+    }
 
-        let client = self.client.clone();
-        let table_name = table.to_string();
+    /// Delete an item from a DynamoDB table.
+    ///
+    /// # Arguments
+    ///
+    /// * `table` - The name of the DynamoDB table
+    /// * `key` - A Python dict with the key attributes (hash key and optional range key)
+    /// * `condition_expression` - Optional condition expression string
+    /// * `expression_attribute_names` - Optional dict mapping name placeholders to attribute names
+    /// * `expression_attribute_values` - Optional dict mapping value placeholders to values
+    ///
+    /// # Returns
+    ///
+    /// None on success. Raises an exception if the condition fails or other errors occur.
+    ///
+    /// # Examples
+    ///
+    /// ```python
+    /// client = DynamoClient()
+    ///
+    /// # Simple delete
+    /// client.delete_item("users", {"pk": "USER#123"})
+    ///
+    /// # Delete with condition
+    /// client.delete_item(
+    ///     "users",
+    ///     {"pk": "USER#123"},
+    ///     condition_expression="attribute_exists(#pk)",
+    ///     expression_attribute_names={"#pk": "pk"}
+    /// )
+    /// ```
+    #[pyo3(signature = (table, key, condition_expression=None, expression_attribute_names=None, expression_attribute_values=None))]
+    pub fn delete_item(
+        &self,
+        py: Python<'_>,
+        table: &str,
+        key: &Bound<'_, PyDict>,
+        condition_expression: Option<String>,
+        expression_attribute_names: Option<&Bound<'_, PyDict>>,
+        expression_attribute_values: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<()> {
+        basic_operations::delete_item(
+            py,
+            &self.client,
+            &self.runtime,
+            table,
+            key,
+            condition_expression,
+            expression_attribute_names,
+            expression_attribute_values,
+        )
+    }
 
-        let result = self.runtime.block_on(async {
-            client
-                .get_item()
-                .table_name(table_name)
-                .set_key(Some(dynamo_key))
-                .send()
-                .await
-        });
+    /// Update an item in a DynamoDB table.
+    ///
+    /// Supports two modes:
+    /// 1. Simple updates via `updates` dict - sets field values directly
+    /// 2. Complex updates via `update_expression` - full DynamoDB update expression
+    ///
+    /// # Arguments
+    ///
+    /// * `table` - The name of the DynamoDB table
+    /// * `key` - A Python dict with the key attributes (hash key and optional range key)
+    /// * `updates` - Optional dict of field:value pairs for simple SET updates
+    /// * `update_expression` - Optional full update expression string
+    /// * `condition_expression` - Optional condition expression string
+    /// * `expression_attribute_names` - Optional dict mapping name placeholders to attribute names
+    /// * `expression_attribute_values` - Optional dict mapping value placeholders to values
+    ///
+    /// # Returns
+    ///
+    /// None on success. Raises an exception if the condition fails or other errors occur.
+    ///
+    /// # Examples
+    ///
+    /// ```python
+    /// client = DynamoClient()
+    ///
+    /// # Simple update - set fields
+    /// client.update_item("users", {"pk": "USER#123"}, updates={"name": "John", "age": 31})
+    ///
+    /// # Atomic increment
+    /// client.update_item(
+    ///     "users",
+    ///     {"pk": "USER#123"},
+    ///     update_expression="SET #c = #c + :val",
+    ///     expression_attribute_names={"#c": "counter"},
+    ///     expression_attribute_values={":val": 1}
+    /// )
+    ///
+    /// # Update with condition
+    /// client.update_item(
+    ///     "users",
+    ///     {"pk": "USER#123"},
+    ///     updates={"status": "active"},
+    ///     condition_expression="attribute_exists(#pk)",
+    ///     expression_attribute_names={"#pk": "pk"}
+    /// )
+    /// ```
+    #[pyo3(signature = (table, key, updates=None, update_expression=None, condition_expression=None, expression_attribute_names=None, expression_attribute_values=None))]
+    #[allow(clippy::too_many_arguments)]
+    pub fn update_item(
+        &self,
+        py: Python<'_>,
+        table: &str,
+        key: &Bound<'_, PyDict>,
+        updates: Option<&Bound<'_, PyDict>>,
+        update_expression: Option<String>,
+        condition_expression: Option<String>,
+        expression_attribute_names: Option<&Bound<'_, PyDict>>,
+        expression_attribute_values: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<()> {
+        basic_operations::update_item(
+            py,
+            &self.client,
+            &self.runtime,
+            table,
+            key,
+            updates,
+            update_expression,
+            condition_expression,
+            expression_attribute_names,
+            expression_attribute_values,
+        )
+    }
 
-        match result {
-            Ok(output) => {
-                if let Some(item) = output.item {
-                    let py_dict = attribute_values_to_py_dict(py, item)?;
-                    Ok(Some(py_dict.into_any().unbind()))
-                } else {
-                    Ok(None)
-                }
-            }
-            Err(e) => {
-                let err_msg = e.to_string();
-                if err_msg.contains("ResourceNotFoundException") {
-                    Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                        "Table not found: {}",
-                        table
-                    )))
-                } else {
-                    Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                        "Failed to get item: {}",
-                        err_msg
-                    )))
-                }
-            }
-        }
+    /// Query a single page of items from a DynamoDB table.
+    ///
+    /// This is the internal method that returns a single page of results.
+    /// For automatic pagination, use the `query()` method from Python which
+    /// returns an iterator.
+    ///
+    /// # Arguments
+    ///
+    /// * `table` - The name of the DynamoDB table
+    /// * `key_condition_expression` - Key condition expression (e.g., "#pk = :pk")
+    /// * `filter_expression` - Optional filter expression for non-key attributes
+    /// * `expression_attribute_names` - Dict mapping name placeholders to attribute names
+    /// * `expression_attribute_values` - Dict mapping value placeholders to values
+    /// * `limit` - Optional max number of items to return
+    /// * `exclusive_start_key` - Optional key to start from (for pagination)
+    /// * `scan_index_forward` - Sort order (True = ascending, False = descending)
+    /// * `index_name` - Optional GSI or LSI name to query
+    ///
+    /// # Returns
+    ///
+    /// A tuple of (items, last_evaluated_key). Items is a list of dicts.
+    /// last_evaluated_key is None if there are no more items, or a dict to pass
+    /// as exclusive_start_key for the next page.
+    #[pyo3(signature = (table, key_condition_expression, filter_expression=None, expression_attribute_names=None, expression_attribute_values=None, limit=None, exclusive_start_key=None, scan_index_forward=None, index_name=None))]
+    #[allow(clippy::too_many_arguments)]
+    pub fn query_page(
+        &self,
+        py: Python<'_>,
+        table: &str,
+        key_condition_expression: &str,
+        filter_expression: Option<String>,
+        expression_attribute_names: Option<&Bound<'_, PyDict>>,
+        expression_attribute_values: Option<&Bound<'_, PyDict>>,
+        limit: Option<i32>,
+        exclusive_start_key: Option<&Bound<'_, PyDict>>,
+        scan_index_forward: Option<bool>,
+        index_name: Option<String>,
+    ) -> PyResult<(Vec<Py<PyAny>>, Option<Py<PyAny>>)> {
+        let result = basic_operations::query(
+            py,
+            &self.client,
+            &self.runtime,
+            table,
+            key_condition_expression,
+            filter_expression,
+            expression_attribute_names,
+            expression_attribute_values,
+            limit,
+            exclusive_start_key,
+            scan_index_forward,
+            index_name,
+        )?;
+        Ok((result.items, result.last_evaluated_key))
     }
 }
 

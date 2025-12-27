@@ -1,4 +1,4 @@
-"""Integration tests for put_item and get_item operations."""
+"""Integration tests for put_item operation."""
 
 import pytest
 
@@ -40,10 +40,11 @@ PUT_ITEM_CASES = [
 
 
 @pytest.mark.parametrize("item", PUT_ITEM_CASES)
-def test_put_item_and_get_item(dynamo, item):
-    """Test saving and retrieving items with different data types."""
+def test_put_item_saves_correctly(dynamo, item):
+    """Test saving items with different data types."""
     dynamo.put_item("test_table", item)
 
+    # Verify by getting the item back
     key = {"pk": item["pk"], "sk": item["sk"]}
     result = dynamo.get_item("test_table", key)
 
@@ -64,9 +65,3 @@ def test_put_item_overwrites_existing(dynamo):
 
     assert result["name"] == "Updated"
     assert result["new_field"] == "value"
-
-
-def test_get_item_not_found_returns_none(dynamo):
-    """Test that get_item returns None for non-existent items."""
-    result = dynamo.get_item("test_table", {"pk": "NONEXISTENT", "sk": "NONE"})
-    assert result is None

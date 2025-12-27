@@ -1,7 +1,4 @@
-"""pydynox - A fast DynamoDB ORM for Python with a Rust core.
-
-This package provides a simple, class-based API to work with DynamoDB.
-The Rust core handles serialization, batch processing, and AWS SDK calls.
+"""pydynox - A fast DynamoDB client for Python with a Rust core.
 
 Example:
     >>> from pydynox import DynamoClient
@@ -10,10 +7,17 @@ Example:
     True
 """
 
-from pydynox._rust import DynamoClient
+# Import from Rust core
+from pydynox import pydynox_core
+
+# Import Python wrappers
+from .query import QueryResult
+from .client import DynamoClient
 
 __version__ = "0.1.0"
+
 __all__ = [
     "DynamoClient",
+    "QueryResult",
     "__version__",
 ]

@@ -10,7 +10,7 @@ an equivalent value.
 
 from hypothesis import given, settings
 from hypothesis import strategies as st
-from pydynox._rust import dynamo_to_py, py_to_dynamo
+from pydynox.pydynox_core import dynamo_to_py, py_to_dynamo
 
 # Strategy for generating valid Python values that DynamoDB supports
 # Note: DynamoDB has some constraints:

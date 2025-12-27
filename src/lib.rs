@@ -11,9 +11,9 @@
 
 use pyo3::prelude::*;
 
+mod basic_operations;
 mod client;
 mod errors;
-mod operations;
 mod serialization;
 
 use client::DynamoClient;
@@ -21,10 +21,10 @@ use serialization::{dynamo_to_py_py, item_from_dynamo, item_to_dynamo, py_to_dyn
 
 /// Python module for pydynox's Rust core.
 ///
-/// This module is imported as `pydynox._rust` in Python and provides
+/// This module is imported as `pydynox_core` in Python and provides
 /// the low-level DynamoDB client implementation.
 #[pymodule]
-fn _rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn pydynox_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<DynamoClient>()?;
 
     // Serialization functions
