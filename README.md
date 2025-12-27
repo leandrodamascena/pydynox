@@ -22,13 +22,19 @@ A fast DynamoDB ORM for Python with a Rust core.
 
 pydynox is faster than PynamoDB and boto3 in all operations. Benchmarks run against moto (local DynamoDB mock):
 
-| Operation (10x) | pydynox | PynamoDB | boto3 | vs PynamoDB | vs boto3 |
-|-----------------|---------|----------|-------|-------------|----------|
-| get_item | 13.1ms | 16.5ms | 16.8ms | **21% faster** | **22% faster** |
-| put_item | 14.5ms | 17.0ms | 17.0ms | **15% faster** | **15% faster** |
-| update_item | 18.6ms | 38.7ms | 21.6ms | **52% faster** | **14% faster** |
-| delete_item | 25.2ms | 33.8ms | 34.0ms | **25% faster** | **26% faster** |
-| query (100 items) | 12.9ms | 13.1ms | 13.3ms | **2% faster** | **3% faster** |
+| Operation | pydynox | PynamoDB | boto3 | vs PynamoDB | vs boto3 |
+|-----------|---------|----------|-------|-------------|----------|
+| batch_get (100 items) | 2.55ms | 4.24ms | 3.92ms | **1.66x faster** | **1.54x faster** |
+| batch_write (100 items) | 7.74ms | 9.53ms | 9.68ms | **1.23x faster** | **1.25x faster** |
+| get_item (10x) | 13.83ms | 16.57ms | 16.86ms | **1.20x faster** | **1.22x faster** |
+| put_item (10x) | 14.13ms | 16.78ms | 16.80ms | **1.19x faster** | **1.19x faster** |
+| query (100 items) | 12.92ms | 14.88ms | 14.79ms | **1.15x faster** | **1.15x faster** |
+| update_item (10x) | 19.04ms | 38.15ms | 21.81ms | **2.00x faster** | **1.15x faster** |
+| delete_item (10x) | 26.96ms | 33.07ms | 32.93ms | **1.23x faster** | **1.22x faster** |
+
+**Highlights:**
+- **batch_get**: 66% faster than PynamoDB
+- **update_item**: 2x faster than PynamoDB
 
 Run benchmarks yourself:
 
