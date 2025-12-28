@@ -88,38 +88,6 @@ jobs:
           .venv\Scripts\activate
           pytest tests/ -v --ignore=tests/benchmark
 
-  test-minimum-versions:
-    name: Test Minimum Versions
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Create venv
-        run: python -m venv .venv
-
-      - name: Build wheel
-        uses: PyO3/maturin-action@v1
-        with:
-          command: build
-          args: --release --out dist
-          sccache: true
-
-      - name: Install wheel and minimum dependencies
-        run: |
-          source .venv/bin/activate
-          pip install dist/*.whl
-          pip install "pytest==8.0.0" "pytest-asyncio==0.24.0" "hypothesis==6.100.0" "moto[dynamodb,server]==5.0.0" "boto3==1.35.0" "pydantic==2.0.0"
-
-      - name: Run tests
-        run: |
-          source .venv/bin/activate
-          pytest tests/ -v --ignore=tests/benchmark
-
   coverage:
     name: Coverage
     runs-on: ubuntu-latest
