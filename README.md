@@ -9,6 +9,8 @@
 A fast DynamoDB ORM for Python with a Rust core.
 
 > ⚠️ **Alpha Software**: This project is in early development. The API may change before v1.0. Use in production at your own risk. Contributions are welcome!
+>
+> 📋 Check the [open issues](https://github.com/leandrodamascena/pydynox/issues) to see what's planned and what's being worked on.
 
 ## Why "pydynox"?
 
