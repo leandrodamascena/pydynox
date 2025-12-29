@@ -15,19 +15,17 @@ permissions:
 jobs:
   build-linux:
     name: Build Linux (${{ matrix.target }}, py${{ matrix.python }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
-        target: [x86_64, aarch64]
         python: ["3.11", "3.12", "3.13", "3.14"]
+        include:
+          - target: x86_64
+            runner: ubuntu-latest
+          - target: aarch64
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        if: matrix.target == 'aarch64'
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
 
       - name: Build wheels
         uses: PyO3/maturin-action@v1
@@ -45,19 +43,17 @@ jobs:
 
   build-musllinux:
     name: Build musllinux (${{ matrix.target }}, py${{ matrix.python }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       matrix:
-        target: [x86_64, aarch64]
         python: ["3.11", "3.12", "3.13", "3.14"]
+        include:
+          - target: x86_64
+            runner: ubuntu-latest
+          - target: aarch64
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        if: matrix.target == 'aarch64'
-        uses: docker/setup-qemu-action@v3
-        with:
-          platforms: arm64
 
       - name: Build wheels
         uses: PyO3/maturin-action@v1
