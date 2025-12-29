@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   build-linux-x86:
-    name: Build Linux (x86_64, py${{ matrix.python }})
+    name: Build manylinux x86_64 cp${{ matrix.python }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -33,11 +33,11 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-linux-x86_64-py${{ matrix.python }}
+          name: pydynox-cp${{ matrix.python }}-manylinux-x86_64
           path: dist/*.whl
 
   build-linux-arm:
-    name: Build Linux (aarch64, py${{ matrix.python }})
+    name: Build manylinux aarch64 cp${{ matrix.python }}
     runs-on: ubuntu-24.04-arm
     strategy:
       matrix:
@@ -56,57 +56,11 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-linux-aarch64-py${{ matrix.python }}
-          path: dist/*.whl
-
-  build-musllinux-x86:
-    name: Build musllinux (x86_64, py${{ matrix.python }})
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python: ["3.11", "3.12", "3.13", "3.14"]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build wheels
-        uses: PyO3/maturin-action@v1
-        with:
-          target: x86_64
-          args: --release --out dist -i python${{ matrix.python }}
-          manylinux: musllinux_1_2
-          sccache: true
-
-      - name: Upload wheels
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheels-musllinux-x86_64-py${{ matrix.python }}
-          path: dist/*.whl
-
-  build-musllinux-arm:
-    name: Build musllinux (aarch64, py${{ matrix.python }})
-    runs-on: ubuntu-24.04-arm
-    strategy:
-      matrix:
-        python: ["3.11", "3.12", "3.13", "3.14"]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Build wheels
-        uses: PyO3/maturin-action@v1
-        with:
-          target: aarch64
-          args: --release --out dist -i python${{ matrix.python }}
-          manylinux: musllinux_1_2
-          sccache: true
-
-      - name: Upload wheels
-        uses: actions/upload-artifact@v4
-        with:
-          name: wheels-musllinux-aarch64-py${{ matrix.python }}
+          name: pydynox-cp${{ matrix.python }}-manylinux-aarch64
           path: dist/*.whl
 
   build-macos:
-    name: Build macOS (${{ matrix.target }}, py${{ matrix.python }})
+    name: Build macOS ${{ matrix.target }} cp${{ matrix.python }}
     runs-on: macos-latest
     strategy:
       matrix:
@@ -125,7 +79,7 @@ jobs:
       - name: Upload wheels
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-macos-${{ matrix.target }}-py${{ matrix.python }}
+          name: pydynox-cp${{ matrix.python }}-macos-${{ matrix.target }}
           path: dist/*.whl
 
   # build-windows:
@@ -152,7 +106,7 @@ jobs:
   #         path: dist/*.whl
 
   build-sdist:
-    name: Build source distribution
+    name: Build sdist
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -166,7 +120,7 @@ jobs:
       - name: Upload sdist
         uses: actions/upload-artifact@v4
         with:
-          name: wheels-sdist
+          name: pydynox-sdist
           path: dist/*.tar.gz
 
   # publish:
