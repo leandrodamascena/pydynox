@@ -13,84 +13,84 @@ permissions:
   id-token: write
 
 jobs:
-  # build-linux:
-  #   name: Build Linux (${{ matrix.target }})
-  #   runs-on: ubuntu-latest
-  #   strategy:
-  #     matrix:
-  #       target: [x86_64, aarch64]
-  #   steps:
-  #     - uses: actions/checkout@v4
+  build-linux:
+    name: Build Linux (${{ matrix.target }}, py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [x86_64, aarch64]
+        python: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
 
-  #     - name: Build wheels
-  #       uses: PyO3/maturin-action@v1
-  #       with:
-  #         target: ${{ matrix.target }}
-  #         args: --release --out dist -i python3.11 -i python3.12 -i python3.13 -i python3.14
-  #         manylinux: 2014
-  #         sccache: true
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist -i python${{ matrix.python }}
+          manylinux: auto
+          sccache: true
 
-  #     - name: Upload wheels
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: wheels-linux-${{ matrix.target }}
-  #         path: dist/*.whl
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-linux-${{ matrix.target }}-py${{ matrix.python }}
+          path: dist/*.whl
 
-  # build-musllinux:
-  #   name: Build musllinux (${{ matrix.target }})
-  #   runs-on: ubuntu-latest
-  #   strategy:
-  #     matrix:
-  #       target: [x86_64, aarch64]
-  #   steps:
-  #     - uses: actions/checkout@v4
+  build-musllinux:
+    name: Build musllinux (${{ matrix.target }}, py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [x86_64, aarch64]
+        python: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
 
-  #     - name: Build wheels
-  #       uses: PyO3/maturin-action@v1
-  #       with:
-  #         target: ${{ matrix.target }}
-  #         args: --release --out dist -i python3.11 -i python3.12 -i python3.13 -i python3.14
-  #         manylinux: musllinux_1_1
-  #         sccache: true
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist -i python${{ matrix.python }}
+          manylinux: musllinux_1_2
+          sccache: true
 
-  #     - name: Upload wheels
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: wheels-musllinux-${{ matrix.target }}
-  #         path: dist/*.whl
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-musllinux-${{ matrix.target }}-py${{ matrix.python }}
+          path: dist/*.whl
 
-  # build-macos:
-  #   name: Build macOS (${{ matrix.target }})
-  #   runs-on: ${{ matrix.runner }}
-  #   strategy:
-  #     matrix:
-  #       include:
-  #         - runner: macos-13
-  #           target: x86_64-apple-darwin
-  #         - runner: macos-14
-  #           target: aarch64-apple-darwin
-  #   steps:
-  #     - uses: actions/checkout@v4
+  build-macos:
+    name: Build macOS (${{ matrix.target }}, py${{ matrix.python }})
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        python: ["3.11", "3.12", "3.13", "3.14"]
+        target: [x86_64-apple-darwin, aarch64-apple-darwin]
+    steps:
+      - uses: actions/checkout@v4
 
-  #     - name: Build wheels
-  #       uses: PyO3/maturin-action@v1
-  #       with:
-  #         target: ${{ matrix.target }}
-  #         args: --release --out dist -i python3.11 -i python3.12 -i python3.13 -i python3.14
-  #         sccache: true
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist -i python${{ matrix.python }}
+          sccache: true
 
-  #     - name: Upload wheels
-  #       uses: actions/upload-artifact@v4
-  #       with:
-  #         name: wheels-macos-${{ matrix.target }}
-  #         path: dist/*.whl
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-macos-${{ matrix.target }}-py${{ matrix.python }}
+          path: dist/*.whl
 
   # build-windows:
-  #   name: Build Windows (${{ matrix.target }})
+  #   name: Build Windows (${{ matrix.target }}, py${{ matrix.python }})
   #   runs-on: windows-latest
   #   strategy:
   #     matrix:
   #       target: [x64]
+  #       python: ["3.11", "3.12", "3.13", "3.14"]
   #   steps:
   #     - uses: actions/checkout@v4
 
@@ -98,13 +98,13 @@ jobs:
   #       uses: PyO3/maturin-action@v1
   #       with:
   #         target: ${{ matrix.target }}
-  #         args: --release --out dist -i python3.11 -i python3.12 -i python3.13 -i python3.14
+  #         args: --release --out dist -i python${{ matrix.python }}
   #         sccache: true
 
   #     - name: Upload wheels
   #       uses: actions/upload-artifact@v4
   #       with:
-  #         name: wheels-windows-${{ matrix.target }}
+  #         name: wheels-windows-${{ matrix.target }}-py${{ matrix.python }}
   #         path: dist/*.whl
 
   build-sdist:
@@ -125,30 +125,30 @@ jobs:
           name: wheels-sdist
           path: dist/*.tar.gz
 
-  publish:
-    name: Publish to PyPI
-    needs: [build-sdist]
-    runs-on: ubuntu-latest
-    environment:
-      name: pypi
-      url: https://pypi.org/p/pydynox
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          pattern: wheels-*
-          path: dist
-          merge-multiple: true
+  # publish:
+  #   name: Publish to PyPI
+  #   needs: [build-linux, build-musllinux, build-macos, build-sdist]
+  #   runs-on: ubuntu-latest
+  #   environment:
+  #     name: pypi
+  #     url: https://pypi.org/p/pydynox
+  #   steps:
+  #     - name: Download all artifacts
+  #       uses: actions/download-artifact@v4
+  #       with:
+  #         pattern: wheels-*
+  #         path: dist
+  #         merge-multiple: true
 
-      - name: List artifacts
-        run: ls -la dist/
+  #     - name: List artifacts
+  #       run: ls -la dist/
 
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+  #     - name: Publish to PyPI
+  #       uses: pypa/gh-action-pypi-publish@release/v1
 
   # github-release:
   #   name: Create GitHub Release
-  #   needs: publish
+  #   needs: [build-linux, build-musllinux, build-macos, build-sdist]
   #   runs-on: ubuntu-latest
   #   steps:
   #     - uses: actions/checkout@v4
@@ -159,6 +159,9 @@ jobs:
   #         pattern: wheels-*
   #         path: dist
   #         merge-multiple: true
+
+  #     - name: List artifacts
+  #       run: ls -la dist/
 
   #     - name: Create Release
   #       uses: softprops/action-gh-release@v2
