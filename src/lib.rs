@@ -14,6 +14,7 @@ use pyo3::prelude::*;
 mod basic_operations;
 mod batch_operations;
 mod client;
+mod compression;
 mod errors;
 pub mod rate_limiter;
 mod serialization;
@@ -45,6 +46,9 @@ fn pydynox_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Register exception classes
     errors::register_exceptions(m)?;
+
+    // Register compression functions
+    compression::register_compression(m)?;
 
     Ok(())
 }
