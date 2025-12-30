@@ -20,6 +20,7 @@ path = "src/lib.rs"
 [dependencies]
 pyo3 = { version = "0.27", features = ["extension-module"] }
 aws-sdk-dynamodb = "1.54"
+aws-sdk-kms = "1.54"
 aws-config = { version = "1.5", features = ["behavior-version-latest"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }

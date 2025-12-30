@@ -20,6 +20,7 @@ create_exception!(pydynox, AccessDeniedError, PydynoxError);
 create_exception!(pydynox, CredentialsError, PydynoxError);
 create_exception!(pydynox, SerializationError, PydynoxError);
 create_exception!(pydynox, ConnectionError, PydynoxError);
+create_exception!(pydynox, EncryptionError, PydynoxError);
 
 /// Register exception classes with the Python module.
 pub fn register_exceptions(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -49,6 +50,7 @@ pub fn register_exceptions(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.py().get_type::<SerializationError>(),
     )?;
     m.add("ConnectionError", m.py().get_type::<ConnectionError>())?;
+    m.add("EncryptionError", m.py().get_type::<EncryptionError>())?;
     Ok(())
 }
 
@@ -249,4 +251,82 @@ fn extract_cancellation_reasons(err_str: &str) -> Vec<String> {
     }
 
     reasons
+}
+
+/// Map KMS SDK errors to Python exceptions.
+///
+/// Similar to map_sdk_error but for KMS-specific errors.
+pub fn map_kms_error<E, R>(err: SdkError<E, R>) -> PyErr
+where
+    E: std::fmt::Debug + std::fmt::Display,
+    R: std::fmt::Debug,
+{
+    let err_display = err.to_string();
+    let err_debug = format!("{:?}", err);
+
+    // Connection errors
+    if err_debug.contains("dispatch failure")
+        || err_debug.contains("DispatchFailure")
+        || err_debug.contains("connection refused")
+        || err_debug.contains("ConnectError")
+    {
+        return ConnectionError::new_err(
+            "Connection to KMS failed. Check if the endpoint is reachable.",
+        );
+    }
+
+    // Credential errors
+    if err_debug.contains("NoCredentialsError")
+        || err_debug.contains("no credentials")
+        || err_debug.contains("CredentialsError")
+    {
+        return CredentialsError::new_err(
+            "No AWS credentials found for KMS. Configure credentials via environment variables.",
+        );
+    }
+
+    if err_debug.contains("InvalidAccessKeyId") {
+        return CredentialsError::new_err("Invalid AWS access key ID for KMS.");
+    }
+
+    // KMS-specific errors
+    if err_debug.contains("NotFoundException") || err_debug.contains("not found") {
+        return EncryptionError::new_err("KMS key not found. Check the key ID or alias.");
+    }
+
+    if err_debug.contains("DisabledException") {
+        return EncryptionError::new_err("KMS key is disabled.");
+    }
+
+    if err_debug.contains("InvalidKeyUsageException") {
+        return EncryptionError::new_err("KMS key cannot be used for this operation.");
+    }
+
+    if err_debug.contains("KeyUnavailableException") {
+        return EncryptionError::new_err("KMS key is not available. Try again later.");
+    }
+
+    if err_debug.contains("InvalidCiphertextException") {
+        return EncryptionError::new_err("Invalid ciphertext. Data may be corrupted.");
+    }
+
+    if err_debug.contains("IncorrectKeyException") {
+        return EncryptionError::new_err("Wrong KMS key used for decryption.");
+    }
+
+    if err_debug.contains("InvalidGrantTokenException") {
+        return EncryptionError::new_err("Invalid grant token.");
+    }
+
+    if err_debug.contains("AccessDeniedException") {
+        return AccessDeniedError::new_err("Access denied to KMS key. Check your IAM permissions.");
+    }
+
+    if err_debug.contains("ThrottlingException") || err_debug.contains("LimitExceededException") {
+        return ThrottlingError::new_err("KMS request rate too high. Try again later.");
+    }
+
+    // Generic encryption error
+    let msg = extract_message(&err_debug).unwrap_or(err_display);
+    EncryptionError::new_err(format!("KMS operation failed: {}", msg))
 }

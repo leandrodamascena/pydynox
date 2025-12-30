@@ -8,6 +8,7 @@ from pydynox._compression import (
     compress_string,
     decompress_string,
 )
+from pydynox._encryption import EncryptionMode, KmsEncryptor
 
 T = TypeVar("T")
 
@@ -23,6 +24,8 @@ __all__ = [
     "ExpiresIn",
     "CompressedAttribute",
     "CompressionAlgorithm",
+    "EncryptedAttribute",
+    "EncryptionMode",
 ]
 
 
@@ -340,3 +343,141 @@ class CompressedAttribute(Attribute[str]):
 
         # All done in Rust: detect prefix + base64 decode + decompress
         return decompress_string(value)
+
+
+class EncryptedAttribute(Attribute[str]):
+    """Attribute that encrypts values using AWS KMS.
+
+    Encrypts sensitive data like SSN or credit cards at the field level.
+    Encryption happens on save, decryption on load.
+
+    Args:
+        key_id: KMS key ID, ARN, or alias (e.g., "alias/my-key").
+        mode: Controls what operations are allowed:
+            - ReadWrite: Can encrypt and decrypt (default)
+            - WriteOnly: Can only encrypt (fails on decrypt)
+            - ReadOnly: Can only decrypt (fails on encrypt)
+        region: AWS region (optional, uses default if not set).
+        context: Encryption context dict for extra security (optional).
+
+    Example:
+        >>> from pydynox import Model
+        >>> from pydynox.attributes import StringAttribute, EncryptedAttribute, EncryptionMode
+        >>>
+        >>> class IngestService(Model):
+        ...     class Meta:
+        ...         table = "users"
+        ...     pk = StringAttribute(hash_key=True)
+        ...     # Write-only: can encrypt, fails on decrypt
+        ...     ssn = EncryptedAttribute(
+        ...         key_id="alias/my-key",
+        ...         mode=EncryptionMode.WriteOnly,
+        ...     )
+        >>>
+        >>> class ReportService(Model):
+        ...     class Meta:
+        ...         table = "users"
+        ...     pk = StringAttribute(hash_key=True)
+        ...     # Read-only: can decrypt, fails on encrypt
+        ...     ssn = EncryptedAttribute(
+        ...         key_id="alias/my-key",
+        ...         mode=EncryptionMode.ReadOnly,
+        ...     )
+        >>>
+        >>> class FullAccess(Model):
+        ...     class Meta:
+        ...         table = "users"
+        ...     pk = StringAttribute(hash_key=True)
+        ...     # Both (default)
+        ...     ssn = EncryptedAttribute(key_id="alias/my-key")
+    """
+
+    attr_type = "S"  # Stored as base64 string
+
+    def __init__(
+        self,
+        key_id: str,
+        mode: Optional["EncryptionMode"] = None,
+        region: Optional[str] = None,
+        context: Optional[dict] = None,
+    ):
+        """Create an encrypted attribute.
+
+        Args:
+            key_id: KMS key ID, ARN, or alias.
+            mode: Encryption mode (default: ReadWrite).
+            region: AWS region (optional).
+            context: Encryption context dict (optional).
+        """
+        super().__init__(hash_key=False, range_key=False, default=None, null=True)
+        self.key_id = key_id
+        self.mode = mode
+        self.region = region
+        self.context = context
+        self._encryptor: Optional["KmsEncryptor"] = None
+
+    @property
+    def encryptor(self) -> "KmsEncryptor":
+        """Lazy-load the KMS encryptor."""
+        if self._encryptor is None:
+            self._encryptor = KmsEncryptor(
+                key_id=self.key_id,
+                region=self.region,
+                context=self.context,
+            )
+        return self._encryptor
+
+    def _can_encrypt(self) -> bool:
+        """Check if encryption is allowed based on mode."""
+        if self.mode is None:
+            return True  # Default is ReadWrite
+        return self.mode != EncryptionMode.ReadOnly
+
+    def _can_decrypt(self) -> bool:
+        """Check if decryption is allowed based on mode."""
+        if self.mode is None:
+            return True  # Default is ReadWrite
+        return self.mode != EncryptionMode.WriteOnly
+
+    def serialize(self, value: str) -> Optional[str]:
+        """Encrypt value for DynamoDB.
+
+        Args:
+            value: String to encrypt.
+
+        Returns:
+            Base64-encoded ciphertext with "ENC:" prefix, or the original
+            value if mode is ReadOnly.
+        """
+        if value is None:
+            return None
+
+        if not self._can_encrypt():
+            return value  # ReadOnly mode: store as-is
+
+        return self.encryptor.encrypt(value)
+
+    def deserialize(self, value: Any) -> Optional[str]:
+        """Decrypt value from DynamoDB.
+
+        Args:
+            value: Encrypted value with "ENC:" prefix.
+
+        Returns:
+            Original plaintext string, or the encrypted value if mode
+            is WriteOnly.
+        """
+        if value is None:
+            return None
+
+        if not isinstance(value, str):
+            return str(value)
+
+        # Check if encrypted
+        if not KmsEncryptor.is_encrypted(value):
+            return value
+
+        if not self._can_decrypt():
+            return value  # WriteOnly mode: return encrypted value
+
+        return self.encryptor.decrypt(value)

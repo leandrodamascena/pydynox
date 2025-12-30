@@ -2,7 +2,7 @@
 /target/
 **/*.rs.bk
 
-/site/
+site/
 
 # Python
 __pycache__/

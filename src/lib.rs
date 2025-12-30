@@ -15,6 +15,7 @@ mod basic_operations;
 mod batch_operations;
 mod client;
 mod compression;
+mod encryption;
 mod errors;
 pub mod rate_limiter;
 mod serialization;
@@ -49,6 +50,9 @@ fn pydynox_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Register compression functions
     compression::register_compression(m)?;
+
+    // Register encryption classes
+    encryption::register_encryption(m)?;
 
     Ok(())
 }

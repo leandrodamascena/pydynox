@@ -29,6 +29,7 @@ AccessDeniedError = pydynox_core.AccessDeniedError
 CredentialsError = pydynox_core.CredentialsError
 SerializationError = pydynox_core.SerializationError
 ConnectionError = pydynox_core.ConnectionError
+EncryptionError = pydynox_core.EncryptionError
 
 __all__ = [
     "PydynoxError",
@@ -42,4 +43,5 @@ __all__ = [
     "CredentialsError",
     "SerializationError",
     "ConnectionError",
+    "EncryptionError",
 ]

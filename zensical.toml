@@ -16,6 +16,8 @@ nav = [
     "guides/08-pydantic.md",
     "guides/09-exceptions.md",
     "guides/10-tables.md",
+    "guides/11-encryption.md",
+    "guides/12-iam-permissions.md",
 ]
 
 [theme]
