@@ -35,6 +35,7 @@ Example:
 from pydynox import pydynox_core  # noqa: F401
 
 # Import Python wrappers
+from pydynox.attributes import CompressedAttribute, CompressionAlgorithm
 from pydynox.batch_operations import BatchWriter
 from pydynox.client import DynamoDBClient
 from pydynox.model import Model
@@ -51,6 +52,9 @@ __all__ = [
     "Transaction",
     # Model ORM
     "Model",
+    # Compression
+    "CompressedAttribute",
+    "CompressionAlgorithm",
     # Version
     "__version__",
 ]
