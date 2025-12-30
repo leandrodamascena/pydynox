@@ -28,6 +28,7 @@ All pydynox exceptions inherit from `PydynoxError`. You can catch specific error
 | `CredentialsError` | AWS credentials missing or invalid |
 | `SerializationError` | Cannot convert data to/from DynamoDB format |
 | `ConnectionError` | Cannot connect to DynamoDB |
+| `EncryptionError` | KMS encryption/decryption failed |
 
 ### Basic error handling
 
@@ -118,7 +119,7 @@ def save_with_retry(client, table, item, max_retries=3):
 
 ```python
 from pydynox import Transaction
-from pydynox.pydynox_core import TransactionCanceledError
+from pydynox.exceptions import TransactionCanceledError
 
 try:
     with Transaction() as tx:
@@ -133,6 +134,27 @@ except TransactionCanceledError as e:
     print(f"Transaction failed: {e}")
     # e.g., "Transaction was canceled: Condition check failed"
 ```
+
+### Encryption errors
+
+`EncryptionError` happens when KMS encryption or decryption fails:
+
+```python
+from pydynox.exceptions import EncryptionError
+
+try:
+    user.save()  # Has an EncryptedAttribute
+except EncryptionError as e:
+    print(f"Encryption failed: {e}")
+```
+
+Common causes:
+
+- KMS key not found (wrong key ID or alias)
+- KMS key is disabled
+- Missing IAM permissions for `kms:Encrypt` or `kms:Decrypt`
+- Wrong encryption context on decrypt
+- Invalid ciphertext (data corrupted)
 
 ### Best practices
 
