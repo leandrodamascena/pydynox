@@ -5,42 +5,19 @@ from pydynox import Model
 from pydynox.attributes import ListAttribute, MapAttribute, NumberAttribute, StringAttribute
 from pydynox.exceptions import ItemTooLargeError
 
-from ..conftest import MOTO_ENDPOINT
-
-
-class User(Model):
-    """Test model without size limit."""
-
-    class Meta:
-        table = "test_table"
-        region = "us-east-1"
-        endpoint_url = MOTO_ENDPOINT
-
-    pk = StringAttribute(hash_key=True)
-    sk = StringAttribute(range_key=True)
-    name = StringAttribute(null=True)
-    age = NumberAttribute(null=True)
-    bio = StringAttribute(null=True)
-    tags = ListAttribute(null=True)
-    metadata = MapAttribute(null=True)
-
-
-class LimitedUser(Model):
-    """Test model with size limit."""
-
-    class Meta:
-        table = "test_table"
-        region = "us-east-1"
-        endpoint_url = MOTO_ENDPOINT
-        max_size = 500  # 500 bytes limit
-
-    pk = StringAttribute(hash_key=True)
-    sk = StringAttribute(range_key=True)
-    bio = StringAttribute(null=True)
-
 
 def test_calculate_size_simple_item(moto_server):
     """calculate_size returns correct size for simple item."""
+
+    class User(Model):
+        class Meta:
+            table = "test_table"
+
+        pk = StringAttribute(hash_key=True)
+        sk = StringAttribute(range_key=True)
+        name = StringAttribute(null=True)
+        age = NumberAttribute(null=True)
+
     user = User(pk="USER#1", sk="PROFILE", name="John", age=30)
     size = user.calculate_size()
 
@@ -52,6 +29,17 @@ def test_calculate_size_simple_item(moto_server):
 
 def test_calculate_size_with_nested_data(moto_server):
     """calculate_size handles nested structures."""
+
+    class User(Model):
+        class Meta:
+            table = "test_table"
+
+        pk = StringAttribute(hash_key=True)
+        sk = StringAttribute(range_key=True)
+        name = StringAttribute(null=True)
+        tags = ListAttribute(null=True)
+        metadata = MapAttribute(null=True)
+
     user = User(
         pk="USER#2",
         sk="PROFILE",
@@ -67,6 +55,16 @@ def test_calculate_size_with_nested_data(moto_server):
 
 def test_calculate_size_detailed_breakdown(moto_server):
     """calculate_size with detailed=True returns field breakdown."""
+
+    class User(Model):
+        class Meta:
+            table = "test_table"
+
+        pk = StringAttribute(hash_key=True)
+        sk = StringAttribute(range_key=True)
+        name = StringAttribute(null=True)
+        bio = StringAttribute(null=True)
+
     user = User(
         pk="USER#3",
         sk="PROFILE",
@@ -80,8 +78,20 @@ def test_calculate_size_detailed_breakdown(moto_server):
     assert size.fields["pk"] < size.fields["bio"]
 
 
-def test_save_succeeds_under_limit(dynamo, table):
+def test_save_succeeds_under_limit(dynamo):
     """save() works when item is under max_size."""
+
+    class LimitedUser(Model):
+        class Meta:
+            table = "test_table"
+            max_size = 500
+
+        pk = StringAttribute(hash_key=True)
+        sk = StringAttribute(range_key=True)
+        bio = StringAttribute(null=True)
+
+    LimitedUser._client = dynamo
+
     user = LimitedUser(pk="USER#4", sk="PROFILE", bio="Short bio")
     user.save()
 
@@ -92,6 +102,16 @@ def test_save_succeeds_under_limit(dynamo, table):
 
 def test_save_raises_when_over_limit(moto_server):
     """save() raises ItemTooLargeError when item exceeds max_size."""
+
+    class LimitedUser(Model):
+        class Meta:
+            table = "test_table"
+            max_size = 500
+
+        pk = StringAttribute(hash_key=True)
+        sk = StringAttribute(range_key=True)
+        bio = StringAttribute(null=True)
+
     user = LimitedUser(
         pk="USER#5",
         sk="PROFILE",
@@ -106,8 +126,19 @@ def test_save_raises_when_over_limit(moto_server):
     assert exc_info.value.item_key == {"pk": "USER#5", "sk": "PROFILE"}
 
 
-def test_save_without_limit_allows_large_items(dynamo, table):
+def test_save_without_limit_allows_large_items(dynamo):
     """save() without max_size allows large items."""
+
+    class User(Model):
+        class Meta:
+            table = "test_table"
+
+        pk = StringAttribute(hash_key=True)
+        sk = StringAttribute(range_key=True)
+        bio = StringAttribute(null=True)
+
+    User._client = dynamo
+
     user = User(
         pk="USER#6",
         sk="PROFILE",
