@@ -94,6 +94,7 @@ class DynamoDBClient:
         table_class: str | None = None,
         encryption: str | None = None,
         kms_key_id: str | None = None,
+        global_secondary_indexes: list[dict[str, Any]] | None = None,
         wait: bool = False,
     ) -> None: ...
     def table_exists(self, table_name: str) -> bool: ...

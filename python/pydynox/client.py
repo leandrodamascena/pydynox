@@ -461,6 +461,7 @@ class DynamoDBClient:
         table_class: str | None = None,
         encryption: str | None = None,
         kms_key_id: str | None = None,
+        global_secondary_indexes: list[dict[str, Any]] | None = None,
         wait: bool = False,
     ) -> None:
         """Create a new DynamoDB table.
@@ -479,6 +480,12 @@ class DynamoDBClient:
             table_class: "STANDARD" (default) or "STANDARD_INFREQUENT_ACCESS".
             encryption: "AWS_OWNED" (default), "AWS_MANAGED", or "CUSTOMER_MANAGED".
             kms_key_id: KMS key ARN (required when encryption is "CUSTOMER_MANAGED").
+            global_secondary_indexes: Optional list of GSI definitions. Each GSI is a dict:
+                - index_name: Name of the GSI
+                - hash_key: Tuple of (attribute_name, attribute_type)
+                - range_key: Optional tuple of (attribute_name, attribute_type)
+                - projection: "ALL" (default), "KEYS_ONLY", or "INCLUDE"
+                - non_key_attributes: List of attribute names (required for "INCLUDE")
             wait: If True, wait for table to become ACTIVE before returning.
 
         Example:
@@ -487,6 +494,20 @@ class DynamoDBClient:
             ...     "users",
             ...     hash_key=("pk", "S"),
             ...     range_key=("sk", "S")
+            ... )
+
+            >>> # Create table with GSI
+            >>> client.create_table(
+            ...     "users",
+            ...     hash_key=("pk", "S"),
+            ...     range_key=("sk", "S"),
+            ...     global_secondary_indexes=[
+            ...         {
+            ...             "index_name": "email-index",
+            ...             "hash_key": ("email", "S"),
+            ...             "projection": "ALL",
+            ...         }
+            ...     ]
             ... )
 
             >>> # Create table with customer managed KMS encryption
@@ -508,6 +529,7 @@ class DynamoDBClient:
             table_class=table_class,
             encryption=encryption,
             kms_key_id=kms_key_id,
+            global_secondary_indexes=global_secondary_indexes,
             wait=wait,
         )
 

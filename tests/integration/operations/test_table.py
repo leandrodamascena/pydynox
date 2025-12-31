@@ -143,3 +143,91 @@ def test_wait_for_table_active(client):
     client.put_item("wait_active_table", {"pk": "test"})
 
     client.delete_table("wait_active_table")
+
+
+def test_create_table_with_gsi_hash_only(client):
+    """Test creating a table with a GSI that has only a hash key."""
+    client.create_table(
+        "gsi_hash_table",
+        hash_key=("pk", "S"),
+        range_key=("sk", "S"),
+        global_secondary_indexes=[
+            {
+                "index_name": "email-index",
+                "hash_key": ("email", "S"),
+                "projection": "ALL",
+            }
+        ],
+    )
+
+    assert client.table_exists("gsi_hash_table")
+
+    # Verify we can write and query
+    client.put_item(
+        "gsi_hash_table", {"pk": "USER#1", "sk": "PROFILE", "email": "test@example.com"}
+    )
+
+    client.delete_table("gsi_hash_table")
+
+
+def test_create_table_with_gsi_hash_and_range(client):
+    """Test creating a table with a GSI that has hash and range keys."""
+    client.create_table(
+        "gsi_range_table",
+        hash_key=("pk", "S"),
+        range_key=("sk", "S"),
+        global_secondary_indexes=[
+            {
+                "index_name": "status-index",
+                "hash_key": ("status", "S"),
+                "range_key": ("created_at", "S"),
+                "projection": "ALL",
+            }
+        ],
+    )
+
+    assert client.table_exists("gsi_range_table")
+    client.delete_table("gsi_range_table")
+
+
+def test_create_table_with_multiple_gsis(client):
+    """Test creating a table with multiple GSIs."""
+    client.create_table(
+        "multi_gsi_table",
+        hash_key=("pk", "S"),
+        range_key=("sk", "S"),
+        global_secondary_indexes=[
+            {
+                "index_name": "email-index",
+                "hash_key": ("email", "S"),
+                "projection": "ALL",
+            },
+            {
+                "index_name": "status-index",
+                "hash_key": ("status", "S"),
+                "range_key": ("pk", "S"),
+                "projection": "KEYS_ONLY",
+            },
+        ],
+    )
+
+    assert client.table_exists("multi_gsi_table")
+    client.delete_table("multi_gsi_table")
+
+
+def test_create_table_with_gsi_keys_only_projection(client):
+    """Test creating a table with a GSI using KEYS_ONLY projection."""
+    client.create_table(
+        "gsi_keys_only_table",
+        hash_key=("pk", "S"),
+        global_secondary_indexes=[
+            {
+                "index_name": "type-index",
+                "hash_key": ("type", "S"),
+                "projection": "KEYS_ONLY",
+            }
+        ],
+    )
+
+    assert client.table_exists("gsi_keys_only_table")
+    client.delete_table("gsi_keys_only_table")

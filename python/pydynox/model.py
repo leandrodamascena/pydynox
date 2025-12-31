@@ -11,6 +11,7 @@ from pydynox.client import DynamoDBClient
 from pydynox.config import ModelConfig, get_default_client
 from pydynox.exceptions import ItemTooLargeError
 from pydynox.hooks import HookType
+from pydynox.indexes import GlobalSecondaryIndex
 from pydynox.size import ItemSize, calculate_item_size
 
 if TYPE_CHECKING:
@@ -26,6 +27,7 @@ class ModelMeta(type):
     _hash_key: str | None
     _range_key: str | None
     _hooks: dict[HookType, list[Any]]
+    _indexes: dict[str, GlobalSecondaryIndex[Any]]
 
     def __new__(mcs, name: str, bases: tuple[type, ...], namespace: dict[str, Any]) -> ModelMeta:
         # Collect attributes from parent classes
@@ -33,6 +35,7 @@ class ModelMeta(type):
         hash_key: str | None = None
         range_key: str | None = None
         hooks: dict[HookType, list[Any]] = {hook_type: [] for hook_type in HookType}
+        indexes: dict[str, GlobalSecondaryIndex[Any]] = {}
 
         for base in bases:
             if hasattr(base, "_attributes"):
@@ -44,8 +47,10 @@ class ModelMeta(type):
             if hasattr(base, "_hooks"):
                 for hook_type, hook_list in base._hooks.items():
                     hooks[hook_type].extend(hook_list)
+            if hasattr(base, "_indexes"):
+                indexes.update(base._indexes)
 
-        # Collect attributes and hooks from this class
+        # Collect attributes, hooks, and indexes from this class
         for attr_name, attr_value in namespace.items():
             if isinstance(attr_value, Attribute):
                 attr_value.attr_name = attr_name
@@ -60,6 +65,10 @@ class ModelMeta(type):
             if callable(attr_value) and hasattr(attr_value, "_hook_type"):
                 hooks[getattr(attr_value, "_hook_type")].append(attr_value)
 
+            # Collect GSIs
+            if isinstance(attr_value, GlobalSecondaryIndex):
+                indexes[attr_name] = attr_value
+
         # Create the class
         cls = super().__new__(mcs, name, bases, namespace)
 
@@ -68,6 +77,11 @@ class ModelMeta(type):
         cls._hash_key = hash_key
         cls._range_key = range_key
         cls._hooks = hooks
+        cls._indexes = indexes
+
+        # Bind indexes to this model class
+        for idx in indexes.values():
+            idx._bind_to_model(cls)
 
         return cls
 
@@ -120,6 +134,7 @@ class Model(metaclass=ModelMeta):
     _hash_key: ClassVar[str | None]
     _range_key: ClassVar[str | None]
     _hooks: ClassVar[dict[HookType, list[Any]]]
+    _indexes: ClassVar[dict[str, GlobalSecondaryIndex[Any]]]
     _client_instance: ClassVar[DynamoDBClient | None] = None
 
     model_config: ClassVar[ModelConfig]

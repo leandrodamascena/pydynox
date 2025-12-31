@@ -13,7 +13,7 @@ nav = [
         "guides/client.md",
         "guides/models.md",
         "guides/attributes.md",
-        "guides/crud.md",
+        "guides/indexes.md",
         "guides/conditions.md",
         "guides/atomic-updates.md",
         "guides/observability.md",

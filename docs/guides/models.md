@@ -1,12 +1,13 @@
 # Models
 
-Models define the structure of your DynamoDB items.
+Models define the structure of your DynamoDB items and provide CRUD operations.
 
 ## Key features
 
 - Typed attributes with defaults
 - Hash key and range key support
 - Required fields with `null=False`
+- Save, get, update, delete operations
 - Convert to/from dict
 
 ## Getting started
@@ -48,6 +49,81 @@ class User(Model):
     ```python
     --8<-- "docs/examples/models/with_defaults.py"
     ```
+
+## CRUD operations
+
+Here's a complete example showing all CRUD operations:
+
+=== "crud_operations.py"
+    ```python
+    --8<-- "docs/examples/models/crud_operations.py"
+    ```
+
+### Create
+
+To create a new item, instantiate your model and call `save()`:
+
+```python
+user = User(pk="USER#123", sk="PROFILE", name="John", age=30)
+user.save()
+```
+
+If an item with the same key already exists, `save()` replaces it completely. This is how DynamoDB works - there's no separate "create" vs "update" at the API level.
+
+### Read
+
+To get an item by its key, use the class method `get()`:
+
+```python
+user = User.get(pk="USER#123", sk="PROFILE")
+if user:
+    print(user.name)
+else:
+    print("User not found")
+```
+
+`get()` returns `None` if the item doesn't exist. Always check for `None` before using the result.
+
+If your table has only a hash key (no range key), you only need to pass the hash key:
+
+```python
+user = User.get(pk="USER#123")
+```
+
+### Update
+
+There are two ways to update an item:
+
+**Full update with save()**: Change attributes and call `save()`. This replaces the entire item:
+
+```python
+user = User.get(pk="USER#123", sk="PROFILE")
+user.name = "Jane"
+user.age = 31
+user.save()
+```
+
+**Partial update with update()**: Update specific fields without touching others:
+
+```python
+user = User.get(pk="USER#123", sk="PROFILE")
+user.update(name="Jane", age=31)
+```
+
+The difference matters when you have many attributes. With `save()`, you send all attributes to DynamoDB. With `update()`, you only send the changed ones.
+
+`update()` also updates the local object, so `user.name` is `"Jane"` after the call.
+
+### Delete
+
+To delete an item, call `delete()` on an instance:
+
+```python
+user = User.get(pk="USER#123", sk="PROFILE")
+user.delete()
+```
+
+After deletion, the object still exists in Python, but the item is gone from DynamoDB.
 
 ## Advanced
 
@@ -115,8 +191,59 @@ data = {'pk': 'USER#123', 'sk': 'PROFILE', 'name': 'John'}
 user = User.from_dict(data)
 ```
 
+### Skipping hooks
+
+If you have [lifecycle hooks](hooks.md) but want to skip them for a specific operation:
+
+```python
+user.save(skip_hooks=True)
+user.delete(skip_hooks=True)
+user.update(skip_hooks=True, name="Jane")
+```
+
+This is useful for:
+
+- Data migrations where validation might fail on old data
+- Bulk operations where you want maximum speed
+- Fixing bad data that wouldn't pass validation
+
+You can also disable hooks for all operations on a model:
+
+```python
+class User(Model):
+    model_config = ModelConfig(table="users", skip_hooks=True)
+```
+
+!!! warning
+    Be careful when skipping hooks. If you have validation in `before_save`, skipping it means invalid data can be saved to DynamoDB.
+
+### Error handling
+
+DynamoDB operations can fail for various reasons. Common errors:
+
+| Error | Cause |
+|-------|-------|
+| `TableNotFoundError` | Table doesn't exist |
+| `ThrottlingError` | Exceeded capacity |
+| `ValidationError` | Invalid data (item too large, etc.) |
+| `ConditionCheckFailedError` | Conditional write failed |
+
+Wrap operations in try/except if you need to handle errors:
+
+```python
+from pydynox.exceptions import TableNotFoundError, ThrottlingError
+
+try:
+    user.save()
+except TableNotFoundError:
+    print("Table doesn't exist")
+except ThrottlingError:
+    print("Rate limited, try again")
+```
+
 ## Next steps
 
 - [Attribute types](attributes.md) - All available attribute types
-- [CRUD operations](crud.md) - Save, get, update, delete
+- [Indexes](indexes.md) - Query by non-key attributes with GSIs
+- [Conditions](conditions.md) - Conditional writes
 - [Hooks](hooks.md) - Lifecycle hooks for validation
