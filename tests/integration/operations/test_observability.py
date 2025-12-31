@@ -1,0 +1,152 @@
+"""Integration tests for logging functionality."""
+
+from __future__ import annotations
+
+import logging
+
+import pytest
+from pydynox import set_correlation_id, set_logger
+from pydynox._internal._logging import get_logger
+
+
+@pytest.fixture
+def capture_logs(caplog):
+    """Capture pydynox logs at INFO level."""
+    caplog.set_level(logging.INFO, logger="pydynox")
+    return caplog
+
+
+def test_put_item_logs_operation(dynamo, capture_logs):
+    """put_item logs the operation."""
+    dynamo.put_item("test_table", {"pk": "USER#1", "sk": "PROFILE", "name": "John"})
+
+    assert len(capture_logs.records) >= 1
+    msg = capture_logs.records[0].message
+    assert "put_item" in msg
+    assert "table=test_table" in msg
+    assert "duration_ms=" in msg
+
+
+def test_get_item_logs_operation(dynamo, capture_logs):
+    """get_item logs the operation."""
+    dynamo.put_item("test_table", {"pk": "USER#1", "sk": "PROFILE"})
+    capture_logs.clear()
+
+    dynamo.get_item("test_table", {"pk": "USER#1", "sk": "PROFILE"})
+
+    assert len(capture_logs.records) >= 1
+    msg = capture_logs.records[0].message
+    assert "get_item" in msg
+    assert "table=test_table" in msg
+
+
+def test_delete_item_logs_operation(dynamo, capture_logs):
+    """delete_item logs the operation."""
+    dynamo.put_item("test_table", {"pk": "USER#1", "sk": "PROFILE"})
+    capture_logs.clear()
+
+    dynamo.delete_item("test_table", {"pk": "USER#1", "sk": "PROFILE"})
+
+    assert len(capture_logs.records) >= 1
+    msg = capture_logs.records[0].message
+    assert "delete_item" in msg
+
+
+def test_update_item_logs_operation(dynamo, capture_logs):
+    """update_item logs the operation."""
+    dynamo.put_item("test_table", {"pk": "USER#1", "sk": "PROFILE", "count": 0})
+    capture_logs.clear()
+
+    dynamo.update_item("test_table", {"pk": "USER#1", "sk": "PROFILE"}, updates={"count": 5})
+
+    assert len(capture_logs.records) >= 1
+    msg = capture_logs.records[0].message
+    assert "update_item" in msg
+
+
+def test_query_logs_operation(dynamo, capture_logs):
+    """query logs the operation."""
+    for i in range(3):
+        dynamo.put_item("test_table", {"pk": "ORG#1", "sk": f"USER#{i}"})
+    capture_logs.clear()
+
+    result = dynamo.query(
+        "test_table",
+        key_condition_expression="#pk = :pk",
+        expression_attribute_names={"#pk": "pk"},
+        expression_attribute_values={":pk": "ORG#1"},
+    )
+    list(result)  # Trigger fetch
+
+    assert len(capture_logs.records) >= 1
+    msg = capture_logs.records[0].message
+    assert "query" in msg
+    assert "table=test_table" in msg
+    assert "items=" in msg
+
+
+def test_correlation_id_in_logs(dynamo, capture_logs):
+    """Correlation ID appears in logs when set."""
+    set_correlation_id("lambda-req-123")
+
+    dynamo.put_item("test_table", {"pk": "USER#1", "sk": "PROFILE"})
+
+    record = capture_logs.records[0]
+    # Check extra dict for correlation_id
+    assert hasattr(record, "correlation_id") or "correlation_id" in getattr(record, "__dict__", {})
+
+    # Cleanup
+    set_correlation_id(None)
+
+
+class MockLogger:
+    """Mock logger for testing custom logger."""
+
+    def __init__(self):
+        self.messages: list[tuple[str, str]] = []
+
+    def info(self, msg: str, **kwargs):
+        self.messages.append(("info", msg))
+
+    def debug(self, msg: str, **kwargs):
+        self.messages.append(("debug", msg))
+
+    def warning(self, msg: str, **kwargs):
+        self.messages.append(("warning", msg))
+
+    def error(self, msg: str, **kwargs):
+        self.messages.append(("error", msg))
+
+
+def test_custom_logger_receives_operation_logs(dynamo):
+    """Custom logger receives logs from operations."""
+    original = get_logger()
+    mock = MockLogger()
+    set_logger(mock)
+
+    dynamo.put_item("test_table", {"pk": "USER#1", "sk": "PROFILE"})
+
+    assert len(mock.messages) >= 1
+    level, msg = mock.messages[0]
+    assert level == "info"
+    assert "put_item" in msg
+
+    # Restore
+    set_logger(original)
+
+
+def test_set_logger_with_sdk_debug(dynamo):
+    """set_logger with sdk_debug=True enables SDK debug logs."""
+    original = get_logger()
+    mock = MockLogger()
+
+    # Enable SDK debug - should not raise
+    set_logger(mock, sdk_debug=True)
+
+    # Operations should still work
+    dynamo.put_item("test_table", {"pk": "USER#1", "sk": "PROFILE"})
+
+    assert len(mock.messages) >= 1
+
+    # Restore
+    set_logger(original)

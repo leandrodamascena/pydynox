@@ -20,6 +20,7 @@ use tokio::runtime::Runtime;
 
 use crate::basic_operations;
 use crate::batch_operations;
+use crate::metrics::OperationMetrics;
 use crate::table_operations;
 use crate::transaction_operations;
 
@@ -170,7 +171,7 @@ impl DynamoDBClient {
         condition_expression: Option<String>,
         expression_attribute_names: Option<&Bound<'_, PyDict>>,
         expression_attribute_values: Option<&Bound<'_, PyDict>>,
-    ) -> PyResult<()> {
+    ) -> PyResult<OperationMetrics> {
         basic_operations::put_item(
             py,
             &self.client,
@@ -207,7 +208,7 @@ impl DynamoDBClient {
         py: Python<'_>,
         table: &str,
         key: &Bound<'_, PyDict>,
-    ) -> PyResult<Option<Py<PyAny>>> {
+    ) -> PyResult<(Option<Py<PyAny>>, OperationMetrics)> {
         basic_operations::get_item(py, &self.client, &self.runtime, table, key)
     }
 
@@ -250,7 +251,7 @@ impl DynamoDBClient {
         condition_expression: Option<String>,
         expression_attribute_names: Option<&Bound<'_, PyDict>>,
         expression_attribute_values: Option<&Bound<'_, PyDict>>,
-    ) -> PyResult<()> {
+    ) -> PyResult<OperationMetrics> {
         basic_operations::delete_item(
             py,
             &self.client,
@@ -321,7 +322,7 @@ impl DynamoDBClient {
         condition_expression: Option<String>,
         expression_attribute_names: Option<&Bound<'_, PyDict>>,
         expression_attribute_values: Option<&Bound<'_, PyDict>>,
-    ) -> PyResult<()> {
+    ) -> PyResult<OperationMetrics> {
         basic_operations::update_item(
             py,
             &self.client,
@@ -374,7 +375,7 @@ impl DynamoDBClient {
         exclusive_start_key: Option<&Bound<'_, PyDict>>,
         scan_index_forward: Option<bool>,
         index_name: Option<String>,
-    ) -> PyResult<(Vec<Py<PyAny>>, Option<Py<PyAny>>)> {
+    ) -> PyResult<(Vec<Py<PyAny>>, Option<Py<PyAny>>, OperationMetrics)> {
         let result = basic_operations::query(
             py,
             &self.client,
@@ -389,7 +390,7 @@ impl DynamoDBClient {
             scan_index_forward,
             index_name,
         )?;
-        Ok((result.items, result.last_evaluated_key))
+        Ok((result.items, result.last_evaluated_key, result.metrics))
     }
 
     /// Batch write items to a DynamoDB table.

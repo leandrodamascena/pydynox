@@ -7,6 +7,7 @@ Run multiple operations that succeed or fail together. If any operation fails, D
 - All-or-nothing operations
 - Put, delete, and update in one transaction
 - Max 100 items per transaction
+- Metrics on every operation (see [observability](observability.md))
 
 ## Getting started
 

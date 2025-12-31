@@ -4,10 +4,15 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from pydynox._internal._logging import _log_operation, _log_warning
+from pydynox._internal._metrics import DictWithMetrics, OperationMetrics
 from pydynox.query import QueryResult
 
 if TYPE_CHECKING:
     from pydynox.rate_limit import AdaptiveRate, FixedRate
+
+# Threshold for slow query warning (ms)
+_SLOW_QUERY_THRESHOLD_MS = 100.0
 
 
 class DynamoDBClient:
@@ -99,7 +104,7 @@ class DynamoDBClient:
         condition_expression: str | None = None,
         expression_attribute_names: dict[str, str] | None = None,
         expression_attribute_values: dict[str, Any] | None = None,
-    ) -> None:
+    ) -> OperationMetrics:
         """Put an item into a DynamoDB table.
 
         Args:
@@ -109,27 +114,33 @@ class DynamoDBClient:
             expression_attribute_names: Optional name placeholders.
             expression_attribute_values: Optional value placeholders.
 
-        Example:
-            >>> client.put_item("users", {"pk": "USER#123", "name": "John", "age": 30})
+        Returns:
+            OperationMetrics with timing and capacity info.
 
-            >>> # With condition (only if item doesn't exist)
-            >>> client.put_item(
-            ...     "users",
-            ...     {"pk": "USER#123", "name": "John"},
-            ...     condition_expression="attribute_not_exists(#pk)",
-            ...     expression_attribute_names={"#pk": "pk"}
-            ... )
+        Example:
+            >>> metrics = client.put_item("users", {"pk": "USER#123", "name": "John"})
+            >>> print(metrics.duration_ms)
+            >>> print(metrics.consumed_wcu)
         """
         self._acquire_wcu(1.0)
-        self._client.put_item(
+        metrics = self._client.put_item(
             table,
             item,
             condition_expression=condition_expression,
             expression_attribute_names=expression_attribute_names,
             expression_attribute_values=expression_attribute_values,
         )
+        _log_operation(
+            "put_item",
+            table,
+            metrics.duration_ms,
+            consumed_wcu=metrics.consumed_wcu,
+        )
+        if metrics.duration_ms > _SLOW_QUERY_THRESHOLD_MS:
+            _log_warning("put_item", f"slow operation ({metrics.duration_ms:.1f}ms)")
+        return metrics
 
-    def get_item(self, table: str, key: dict[str, Any]) -> dict[str, Any] | None:
+    def get_item(self, table: str, key: dict[str, Any]) -> DictWithMetrics | None:
         """Get an item from a DynamoDB table by its key.
 
         Args:
@@ -137,15 +148,27 @@ class DynamoDBClient:
             key: A dict with the key attributes (hash key and optional range key).
 
         Returns:
-            The item as a dict if found, None if not found.
+            The item as a DictWithMetrics if found (with .metrics), None if not found.
 
         Example:
             >>> item = client.get_item("users", {"pk": "USER#123"})
             >>> if item:
             ...     print(item["name"])
+            ...     print(item.metrics.duration_ms)
         """
         self._acquire_rcu(1.0)
-        return self._client.get_item(table, key)
+        result, metrics = self._client.get_item(table, key)
+        _log_operation(
+            "get_item",
+            table,
+            metrics.duration_ms,
+            consumed_rcu=metrics.consumed_rcu,
+        )
+        if metrics.duration_ms > _SLOW_QUERY_THRESHOLD_MS:
+            _log_warning("get_item", f"slow operation ({metrics.duration_ms:.1f}ms)")
+        if result is None:
+            return None
+        return DictWithMetrics(result, metrics)
 
     def delete_item(
         self,
@@ -154,7 +177,7 @@ class DynamoDBClient:
         condition_expression: str | None = None,
         expression_attribute_names: dict[str, str] | None = None,
         expression_attribute_values: dict[str, Any] | None = None,
-    ) -> None:
+    ) -> OperationMetrics:
         """Delete an item from a DynamoDB table.
 
         Args:
@@ -164,17 +187,30 @@ class DynamoDBClient:
             expression_attribute_names: Optional name placeholders.
             expression_attribute_values: Optional value placeholders.
 
+        Returns:
+            OperationMetrics with timing and capacity info.
+
         Example:
-            >>> client.delete_item("users", {"pk": "USER#123"})
+            >>> metrics = client.delete_item("users", {"pk": "USER#123"})
+            >>> print(metrics.duration_ms)
         """
         self._acquire_wcu(1.0)
-        self._client.delete_item(
+        metrics = self._client.delete_item(
             table,
             key,
             condition_expression=condition_expression,
             expression_attribute_names=expression_attribute_names,
             expression_attribute_values=expression_attribute_values,
         )
+        _log_operation(
+            "delete_item",
+            table,
+            metrics.duration_ms,
+            consumed_wcu=metrics.consumed_wcu,
+        )
+        if metrics.duration_ms > _SLOW_QUERY_THRESHOLD_MS:
+            _log_warning("delete_item", f"slow operation ({metrics.duration_ms:.1f}ms)")
+        return metrics
 
     def update_item(
         self,
@@ -185,7 +221,7 @@ class DynamoDBClient:
         condition_expression: str | None = None,
         expression_attribute_names: dict[str, str] | None = None,
         expression_attribute_values: dict[str, Any] | None = None,
-    ) -> None:
+    ) -> OperationMetrics:
         """Update an item in a DynamoDB table.
 
         Args:
@@ -197,21 +233,15 @@ class DynamoDBClient:
             expression_attribute_names: Optional name placeholders.
             expression_attribute_values: Optional value placeholders.
 
-        Example:
-            >>> # Simple update
-            >>> client.update_item("users", {"pk": "USER#123"}, updates={"name": "John"})
+        Returns:
+            OperationMetrics with timing and capacity info.
 
-            >>> # Atomic increment
-            >>> client.update_item(
-            ...     "users",
-            ...     {"pk": "USER#123"},
-            ...     update_expression="SET #c = #c + :val",
-            ...     expression_attribute_names={"#c": "counter"},
-            ...     expression_attribute_values={":val": 1}
-            ... )
+        Example:
+            >>> metrics = client.update_item("users", {"pk": "USER#123"}, updates={"name": "John"})
+            >>> print(metrics.duration_ms)
         """
         self._acquire_wcu(1.0)
-        self._client.update_item(
+        metrics = self._client.update_item(
             table,
             key,
             updates=updates,
@@ -220,6 +250,15 @@ class DynamoDBClient:
             expression_attribute_names=expression_attribute_names,
             expression_attribute_values=expression_attribute_values,
         )
+        _log_operation(
+            "update_item",
+            table,
+            metrics.duration_ms,
+            consumed_wcu=metrics.consumed_wcu,
+        )
+        if metrics.duration_ms > _SLOW_QUERY_THRESHOLD_MS:
+            _log_warning("update_item", f"slow operation ({metrics.duration_ms:.1f}ms)")
+        return metrics
 
     def query(
         self,

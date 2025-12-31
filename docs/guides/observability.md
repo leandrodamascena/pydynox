@@ -1,0 +1,183 @@
+# Observability
+
+Know what's happening in your DynamoDB operations. pydynox gives you metrics on every call - duration, capacity consumed, items returned. No extra code needed.
+
+## Why observability matters
+
+DynamoDB bills by capacity consumed. Without metrics, you're flying blind:
+
+- Is that query using 1 RCU or 100?
+- Why is this Lambda timing out?
+- Which operation is eating all my capacity?
+
+pydynox answers these questions automatically. Every operation returns metrics, and logs are built-in.
+
+## Key features
+
+- Metrics on every operation (duration, RCU/WCU, item counts)
+- Automatic logging at INFO level
+- Custom logger support (Powertools, structlog)
+- Correlation ID for request tracing
+- AWS SDK debug logs when you need them
+
+## Getting started
+
+### Metrics on every operation
+
+Every pydynox operation returns metrics. You don't need to enable anything.
+
+For `get_item`, the returned dict has a `.metrics` attribute:
+
+=== "get_item_metrics.py"
+    ```python
+    --8<-- "docs/examples/observability/get_item_metrics.py"
+    ```
+
+For write operations, metrics are returned directly:
+
+=== "put_item_metrics.py"
+    ```python
+    --8<-- "docs/examples/observability/put_item_metrics.py"
+    ```
+
+For queries, access metrics after iteration:
+
+=== "query_metrics.py"
+    ```python
+    --8<-- "docs/examples/observability/query_metrics.py"
+    ```
+
+### What's in metrics
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `duration_ms` | float | How long the operation took |
+| `consumed_rcu` | float or None | Read capacity units used |
+| `consumed_wcu` | float or None | Write capacity units used |
+| `items_count` | int or None | Items returned (query/scan) |
+| `scanned_count` | int or None | Items scanned before filtering |
+| `request_id` | str or None | AWS request ID for support tickets |
+
+### Automatic logging
+
+pydynox logs every operation at INFO level. Just configure Python logging:
+
+=== "basic_logging.py"
+    ```python
+    --8<-- "docs/examples/observability/basic_logging.py"
+    ```
+
+Output:
+
+```
+INFO:pydynox:put_item table=users duration_ms=8.2 wcu=1.0
+INFO:pydynox:get_item table=users duration_ms=12.1 rcu=0.5
+INFO:pydynox:query table=users duration_ms=45.2 rcu=2.5 items=10
+```
+
+Slow operations (>100ms) get a warning:
+
+```
+WARNING:pydynox:query slow operation (150.3ms)
+```
+
+### Disable logging
+
+If you don't want pydynox logs at all:
+
+=== "disable_logging.py"
+    ```python
+    --8<-- "docs/examples/observability/disable_logging.py"
+    ```
+
+## Advanced
+
+### Custom logger
+
+Send pydynox logs to your own logger with `set_logger()`:
+
+=== "custom_logger.py"
+    ```python
+    --8<-- "docs/examples/observability/custom_logger.py"
+    ```
+
+Works with any logger that has `debug`, `info`, `warning`, `error` methods. Great for AWS Lambda Powertools or structlog.
+
+### Correlation ID
+
+Track requests across your logs with `set_correlation_id()`:
+
+=== "correlation_id.py"
+    ```python
+    --8<-- "docs/examples/observability/correlation_id.py"
+    ```
+
+All pydynox logs will include the correlation ID. Useful in Lambda where you want to trace a request through multiple DynamoDB calls.
+
+### SDK debug logs
+
+For deep debugging, enable AWS SDK logs:
+
+=== "sdk_debug.py"
+    ```python
+    --8<-- "docs/examples/observability/sdk_debug.py"
+    ```
+
+Or via environment variable:
+
+```bash
+# Basic SDK logs
+RUST_LOG=aws_sdk_dynamodb=debug python app.py
+
+# Full detail (HTTP bodies, retries, credentials)
+RUST_LOG=aws_sdk_dynamodb=trace,aws_smithy_runtime=trace python app.py
+```
+
+!!! warning
+    SDK debug logs are verbose. Only enable when debugging specific issues.
+
+### Log levels
+
+| Level | What's logged |
+|-------|---------------|
+| ERROR | Exceptions, failed operations |
+| WARNING | Slow queries (>100ms) |
+| INFO | Operation summary (table, duration, rcu/wcu) |
+| DEBUG | Detailed request/response info |
+
+## Use cases
+
+### Cost monitoring
+
+Track capacity consumption per operation:
+
+```python
+result = client.get_item("users", {"pk": "USER#123"})
+print(f"This read cost {result.metrics.consumed_rcu} RCU")
+
+# Over time, aggregate these to understand costs
+```
+
+### Performance debugging
+
+Find slow operations:
+
+```python
+result = client.query(...)
+if result.metrics.duration_ms > 100:
+    logger.warning(f"Slow query: {result.metrics.duration_ms}ms")
+```
+
+### Lambda optimization
+
+In Lambda, every millisecond counts:
+
+```python
+def handler(event, context):
+    set_correlation_id(context.aws_request_id)
+    
+    user = User.get(pk=event["user_id"])
+    # Logs include request ID for tracing
+    
+    return {"statusCode": 200}
+```

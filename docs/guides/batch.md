@@ -7,6 +7,7 @@ Work with multiple items at once. Instead of making 100 separate API calls, batc
 - Auto-batching in groups of 25
 - Automatic retry for failed items
 - Mix puts and deletes in one batch
+- Metrics on every operation (see [observability](observability.md))
 
 ## Getting started
 

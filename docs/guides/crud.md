@@ -8,6 +8,7 @@ Basic create, read, update, delete operations. These are the most common operati
 - `get()` to read by key
 - `update()` for partial updates
 - `delete()` to remove items
+- Metrics on every operation (see [observability](observability.md))
 
 ## Getting started
 
