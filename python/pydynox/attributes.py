@@ -642,7 +642,8 @@ class JSONAttribute(Attribute[dict[str, Any] | list[Any]]):
             return None
         if isinstance(value, (dict, list)):
             return value
-        return json.loads(value)
+        result: dict[str, Any] | list[Any] = json.loads(value)
+        return result
 
 
 class EnumAttribute(Attribute[E], Generic[E]):
