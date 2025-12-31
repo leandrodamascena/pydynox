@@ -316,19 +316,26 @@ pydynox/python/pydynox/
 
 ### Type Hints
 
-Always use type hints:
+Always use type hints. mypy MUST pass with zero errors.
 
 ```python
 # Good
 def get_item(self, pk: str, sk: Optional[str] = None) -> Optional["Model"]:
     ...
 
-# Bad
+# Bad - mypy will fail
 def get_item(self, pk, sk=None):
     ...
 ```
 
 Use `from __future__ import annotations` at the top of files.
+
+#### mypy Rules
+
+- All functions must have type hints for parameters and return values
+- Use `# type: ignore` only when absolutely necessary, and add a comment explaining why
+- Avoid `Any` type when possible. If you must use it, be specific about why
+- Run `uv run mypy .` before committing
 
 ### Docstrings
 
@@ -352,7 +359,7 @@ def save(self, condition: Optional[Condition] = None) -> None:
 
 ### Imports
 
-Order imports like this:
+Order imports like this (ruff will enforce this):
 
 1. Standard library
 2. Third party
@@ -367,6 +374,8 @@ from typing import Any, Optional
 from pydynox import pydynox_core
 from pydynox.exceptions import ItemNotFoundError
 ```
+
+Run `uv run ruff check --fix .` to auto-fix import ordering.
 
 ### Calling Rust
 
@@ -403,6 +412,31 @@ def dynamodb_model(table: str, hash_key: str):
 
 ---
 
+## Code Quality Requirements
+
+All Python code MUST pass these checks before commit:
+
+```bash
+uv run ruff check .          # Linting - must pass with zero errors
+uv run ruff format --check . # Formatting - must be formatted
+uv run mypy .                # Type checking - must pass with zero errors
+```
+
+These are not optional. Fix all errors before submitting code.
+
+### Pre-commit Checklist
+
+Before committing Python code:
+
+1. `uv run ruff format .` - Format code
+2. `uv run ruff check --fix .` - Fix lint errors
+3. `uv run mypy .` - Check types
+4. `uv run pytest` - Run tests
+
+All four must pass. No exceptions.
+
+---
+
 ## Useful Commands
 
 ```bash
@@ -413,7 +447,11 @@ cargo fmt
 cargo clippy -- -D warnings
 
 # Lint Python code
-uv run ruff check python/ tests/
+uv run ruff check .
+uv run ruff format .
+
+# Type check Python code
+uv run mypy .
 
 # Build release
 uv run maturin develop --release

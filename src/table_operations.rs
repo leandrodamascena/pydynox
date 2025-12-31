@@ -4,16 +4,84 @@
 //! Useful for local development and testing with moto/localstack.
 
 use aws_sdk_dynamodb::types::{
-    AttributeDefinition, BillingMode, KeySchemaElement, KeyType, ScalarAttributeType,
-    SseSpecification, SseType, TableClass, TableStatus,
+    AttributeDefinition, BillingMode, GlobalSecondaryIndex, KeySchemaElement, KeyType, Projection,
+    ProjectionType, ScalarAttributeType, SseSpecification, SseType, TableClass, TableStatus,
 };
 use aws_sdk_dynamodb::Client;
 use pyo3::prelude::*;
+use pyo3::types::PyList;
+use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::runtime::Runtime;
 
 use crate::errors::{map_sdk_error, ValidationError};
+
+/// GSI definition from Python.
+#[derive(Debug)]
+pub struct GsiDefinition {
+    pub index_name: String,
+    pub hash_key_name: String,
+    pub hash_key_type: String,
+    pub range_key_name: Option<String>,
+    pub range_key_type: Option<String>,
+    pub projection: String,
+    pub non_key_attributes: Option<Vec<String>>,
+}
+
+/// Parse GSI definitions from Python list.
+pub fn parse_gsi_definitions(
+    py: Python<'_>,
+    gsis: &Bound<'_, PyList>,
+) -> PyResult<Vec<GsiDefinition>> {
+    let mut result = Vec::new();
+
+    for item in gsis.iter() {
+        let dict = item.downcast::<pyo3::types::PyDict>()?;
+
+        let index_name: String = dict
+            .get_item("index_name")?
+            .ok_or_else(|| ValidationError::new_err("GSI missing 'index_name'"))?
+            .extract()?;
+
+        // hash_key is a tuple (name, type)
+        let hash_key: (String, String) = dict
+            .get_item("hash_key")?
+            .ok_or_else(|| ValidationError::new_err("GSI missing 'hash_key'"))?
+            .extract()?;
+
+        // range_key is optional tuple (name, type)
+        let range_key: Option<(String, String)> = dict
+            .get_item("range_key")?
+            .map(|v| v.extract())
+            .transpose()?;
+
+        // projection defaults to "ALL"
+        let projection: String = dict
+            .get_item("projection")?
+            .map(|v| v.extract())
+            .transpose()?
+            .unwrap_or_else(|| "ALL".to_string());
+
+        // non_key_attributes for INCLUDE projection
+        let non_key_attributes: Option<Vec<String>> = dict
+            .get_item("non_key_attributes")?
+            .map(|v| v.extract())
+            .transpose()?;
+
+        result.push(GsiDefinition {
+            index_name,
+            hash_key_name: hash_key.0,
+            hash_key_type: hash_key.1,
+            range_key_name: range_key.as_ref().map(|(n, _)| n.clone()),
+            range_key_type: range_key.map(|(_, t)| t),
+            projection,
+            non_key_attributes,
+        });
+    }
+
+    Ok(result)
+}
 
 /// Create a new DynamoDB table.
 ///
@@ -32,6 +100,7 @@ use crate::errors::{map_sdk_error, ValidationError};
 /// * `table_class` - "STANDARD" or "STANDARD_INFREQUENT_ACCESS"
 /// * `encryption` - "AWS_OWNED", "AWS_MANAGED", or "CUSTOMER_MANAGED"
 /// * `kms_key_id` - KMS key ARN (required when encryption is "CUSTOMER_MANAGED")
+/// * `gsis` - Optional list of GSI definitions
 #[allow(clippy::too_many_arguments)]
 pub fn create_table(
     client: &Client,
@@ -47,8 +116,12 @@ pub fn create_table(
     table_class: Option<&str>,
     encryption: Option<&str>,
     kms_key_id: Option<&str>,
+    gsis: Option<Vec<GsiDefinition>>,
 ) -> PyResult<()> {
     let hash_attr_type = parse_attribute_type(hash_key_type)?;
+
+    // Track all attribute names to avoid duplicates
+    let mut defined_attrs: HashSet<String> = HashSet::new();
 
     // Build attribute definitions
     let mut attribute_definitions = vec![AttributeDefinition::builder()
@@ -56,6 +129,7 @@ pub fn create_table(
         .attribute_type(hash_attr_type)
         .build()
         .map_err(|e| ValidationError::new_err(format!("Invalid attribute definition: {}", e)))?];
+    defined_attrs.insert(hash_key_name.to_string());
 
     // Build key schema
     let mut key_schema = vec![KeySchemaElement::builder()
@@ -77,6 +151,7 @@ pub fn create_table(
                     ValidationError::new_err(format!("Invalid attribute definition: {}", e))
                 })?,
         );
+        defined_attrs.insert(rk_name.to_string());
 
         key_schema.push(
             KeySchemaElement::builder()
@@ -85,6 +160,74 @@ pub fn create_table(
                 .build()
                 .map_err(|e| ValidationError::new_err(format!("Invalid key schema: {}", e)))?,
         );
+    }
+
+    // Build GSIs if provided
+    let mut gsi_list: Vec<GlobalSecondaryIndex> = Vec::new();
+    if let Some(gsi_defs) = gsis {
+        for gsi in gsi_defs {
+            // Add GSI hash key attribute if not already defined
+            if !defined_attrs.contains(&gsi.hash_key_name) {
+                let gsi_hash_type = parse_attribute_type(&gsi.hash_key_type)?;
+                attribute_definitions.push(
+                    AttributeDefinition::builder()
+                        .attribute_name(&gsi.hash_key_name)
+                        .attribute_type(gsi_hash_type)
+                        .build()
+                        .map_err(|e| {
+                            ValidationError::new_err(format!("Invalid GSI attribute: {}", e))
+                        })?,
+                );
+                defined_attrs.insert(gsi.hash_key_name.clone());
+            }
+
+            // Build GSI key schema
+            let mut gsi_key_schema = vec![KeySchemaElement::builder()
+                .attribute_name(&gsi.hash_key_name)
+                .key_type(KeyType::Hash)
+                .build()
+                .map_err(|e| ValidationError::new_err(format!("Invalid GSI key schema: {}", e)))?];
+
+            // Add GSI range key if provided
+            if let (Some(rk_name), Some(rk_type)) = (&gsi.range_key_name, &gsi.range_key_type) {
+                if !defined_attrs.contains(rk_name) {
+                    let gsi_range_type = parse_attribute_type(rk_type)?;
+                    attribute_definitions.push(
+                        AttributeDefinition::builder()
+                            .attribute_name(rk_name)
+                            .attribute_type(gsi_range_type)
+                            .build()
+                            .map_err(|e| {
+                                ValidationError::new_err(format!("Invalid GSI attribute: {}", e))
+                            })?,
+                    );
+                    defined_attrs.insert(rk_name.clone());
+                }
+
+                gsi_key_schema.push(
+                    KeySchemaElement::builder()
+                        .attribute_name(rk_name)
+                        .key_type(KeyType::Range)
+                        .build()
+                        .map_err(|e| {
+                            ValidationError::new_err(format!("Invalid GSI key schema: {}", e))
+                        })?,
+                );
+            }
+
+            // Build projection
+            let projection = build_projection(&gsi.projection, gsi.non_key_attributes.as_deref())?;
+
+            // Build GSI
+            let gsi_builder = GlobalSecondaryIndex::builder()
+                .index_name(&gsi.index_name)
+                .set_key_schema(Some(gsi_key_schema))
+                .projection(projection)
+                .build()
+                .map_err(|e| ValidationError::new_err(format!("Invalid GSI: {}", e)))?;
+
+            gsi_list.push(gsi_builder);
+        }
     }
 
     // Parse billing mode
@@ -100,6 +243,11 @@ pub fn create_table(
             .set_attribute_definitions(Some(attribute_definitions))
             .set_key_schema(Some(key_schema))
             .billing_mode(billing.clone());
+
+        // Add GSIs if any
+        if !gsi_list.is_empty() {
+            request = request.set_global_secondary_indexes(Some(gsi_list));
+        }
 
         // Add provisioned throughput if using PROVISIONED billing
         if billing == BillingMode::Provisioned {
@@ -136,6 +284,34 @@ pub fn create_table(
 
         Ok(())
     })
+}
+
+/// Build projection for GSI.
+fn build_projection(
+    projection_type: &str,
+    non_key_attributes: Option<&[String]>,
+) -> PyResult<Projection> {
+    match projection_type.to_uppercase().as_str() {
+        "ALL" => Ok(Projection::builder()
+            .projection_type(ProjectionType::All)
+            .build()),
+        "KEYS_ONLY" => Ok(Projection::builder()
+            .projection_type(ProjectionType::KeysOnly)
+            .build()),
+        "INCLUDE" => {
+            let attrs = non_key_attributes.ok_or_else(|| {
+                ValidationError::new_err("non_key_attributes required when projection is 'INCLUDE'")
+            })?;
+            Ok(Projection::builder()
+                .projection_type(ProjectionType::Include)
+                .set_non_key_attributes(Some(attrs.to_vec()))
+                .build())
+        }
+        _ => Err(ValidationError::new_err(format!(
+            "Invalid projection: '{}'. Use 'ALL', 'KEYS_ONLY', or 'INCLUDE'",
+            projection_type
+        ))),
+    }
 }
 
 /// Check if a table exists.

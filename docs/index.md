@@ -58,13 +58,44 @@ That's it! You're now using DynamoDB with a clean, typed API.
 
 Now that you have the basics, explore these guides:
 
+### Core
+
 | Guide | Description |
 |-------|-------------|
-| [Models](guides/models.md) | Learn about attributes, keys, and defaults |
-| [CRUD operations](guides/crud.md) | More on create, read, update, delete |
+| [Client](guides/client.md) | Configure the DynamoDB client |
+| [Models](guides/models.md) | Attributes, keys, defaults, and CRUD operations |
+| [Attributes](guides/attributes.md) | All available attribute types |
+| [Indexes](guides/indexes.md) | Query by non-key attributes with GSIs |
+| [Conditions](guides/conditions.md) | Filter and conditional writes |
+| [Atomic updates](guides/atomic-updates.md) | Increment, append, and other atomic operations |
+| [Observability](guides/observability.md) | Logging and metrics |
+
+### Operations
+
+| Guide | Description |
+|-------|-------------|
 | [Batch operations](guides/batch.md) | Work with multiple items at once |
 | [Transactions](guides/transactions.md) | All-or-nothing operations |
-| [Rate limiting](guides/rate-limiting.md) | Control throughput |
+| [Tables](guides/tables.md) | Create and manage tables |
+
+### Features
+
+| Guide | Description |
+|-------|-------------|
 | [Lifecycle hooks](guides/hooks.md) | Run code before/after operations |
-| [TTL](guides/ttl.md) | Auto-delete items |
+| [Rate limiting](guides/rate-limiting.md) | Control throughput |
+| [Encryption](guides/encryption.md) | Field-level encryption with KMS |
+| [Size calculator](guides/size-calculator.md) | Calculate item sizes |
+
+### Integrations
+
+| Guide | Description |
+|-------|-------------|
 | [Pydantic](guides/pydantic.md) | Use Pydantic models |
+
+### Troubleshooting
+
+| Guide | Description |
+|-------|-------------|
+| [Exceptions](guides/exceptions.md) | Error handling |
+| [IAM permissions](guides/iam-permissions.md) | Required AWS permissions |

@@ -557,6 +557,7 @@ impl DynamoDBClient {
     /// * `table_class` - "STANDARD" (default) or "STANDARD_INFREQUENT_ACCESS"
     /// * `encryption` - "AWS_OWNED" (default), "AWS_MANAGED", or "CUSTOMER_MANAGED"
     /// * `kms_key_id` - KMS key ARN (required when encryption is "CUSTOMER_MANAGED")
+    /// * `global_secondary_indexes` - Optional list of GSI definitions
     /// * `wait` - If true, wait for table to become ACTIVE (default: false)
     ///
     /// # Examples
@@ -571,6 +572,20 @@ impl DynamoDBClient {
     ///     range_key=("sk", "S")
     /// )
     ///
+    /// # Create table with GSI
+    /// client.create_table(
+    ///     "users",
+    ///     hash_key=("pk", "S"),
+    ///     range_key=("sk", "S"),
+    ///     global_secondary_indexes=[
+    ///         {
+    ///             "index_name": "email-index",
+    ///             "hash_key": ("email", "S"),
+    ///             "projection": "ALL",
+    ///         }
+    ///     ]
+    /// )
+    ///
     /// # Create table with customer managed KMS encryption
     /// client.create_table(
     ///     "orders",
@@ -580,10 +595,11 @@ impl DynamoDBClient {
     ///     wait=True
     /// )
     /// ```
-    #[pyo3(signature = (table_name, hash_key, range_key=None, billing_mode="PAY_PER_REQUEST", read_capacity=None, write_capacity=None, table_class=None, encryption=None, kms_key_id=None, wait=false))]
+    #[pyo3(signature = (table_name, hash_key, range_key=None, billing_mode="PAY_PER_REQUEST", read_capacity=None, write_capacity=None, table_class=None, encryption=None, kms_key_id=None, global_secondary_indexes=None, wait=false))]
     #[allow(clippy::too_many_arguments)]
     pub fn create_table(
         &self,
+        py: Python<'_>,
         table_name: &str,
         hash_key: (&str, &str),
         range_key: Option<(&str, &str)>,
@@ -593,11 +609,18 @@ impl DynamoDBClient {
         table_class: Option<&str>,
         encryption: Option<&str>,
         kms_key_id: Option<&str>,
+        global_secondary_indexes: Option<&Bound<'_, pyo3::types::PyList>>,
         wait: bool,
     ) -> PyResult<()> {
         let (range_key_name, range_key_type) = match range_key {
             Some((name, typ)) => (Some(name), Some(typ)),
             None => (None, None),
+        };
+
+        // Parse GSI definitions if provided
+        let gsis = match global_secondary_indexes {
+            Some(list) => Some(table_operations::parse_gsi_definitions(py, list)?),
+            None => None,
         };
 
         table_operations::create_table(
@@ -614,6 +637,7 @@ impl DynamoDBClient {
             table_class,
             encryption,
             kms_key_id,
+            gsis,
         )?;
 
         if wait {

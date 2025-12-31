@@ -1,5 +1,16 @@
 # Testing Guidelines
 
+## Code Quality
+
+Test code must pass linting:
+
+```bash
+uv run ruff check tests/       # Lint tests
+uv run ruff format tests/      # Format tests
+```
+
+Note: mypy is NOT required for tests. Type hints in tests are optional.
+
 ## Test Structure
 
 ```
@@ -134,3 +145,20 @@ mod tests {
 ```
 
 But if the function takes `PyObject` or returns `PyResult`, test it from Python.
+
+## Type Hints in Tests
+
+Type hints in tests are optional. They can help with IDE autocomplete but are not required.
+
+```python
+import pytest
+from pydynox import Model
+
+@pytest.fixture
+def user():
+    return User(pk="USER#1", name="Test")
+
+def test_save_user(user):
+    user.save()
+    assert user.pk == "USER#1"
+```

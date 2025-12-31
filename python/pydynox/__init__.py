@@ -61,6 +61,7 @@ from pydynox.config import (
     get_default_client,
     set_default_client,
 )
+from pydynox.indexes import GlobalSecondaryIndex
 from pydynox.model import Model
 from pydynox.query import QueryResult
 from pydynox.transaction import Transaction
@@ -75,6 +76,7 @@ __all__ = [
     "Transaction",
     # Model ORM
     "Condition",
+    "GlobalSecondaryIndex",
     "Model",
     "ModelConfig",
     # Metrics (public class for type hints)
