@@ -31,13 +31,13 @@ pub struct GsiDefinition {
 
 /// Parse GSI definitions from Python list.
 pub fn parse_gsi_definitions(
-    py: Python<'_>,
+    _py: Python<'_>,
     gsis: &Bound<'_, PyList>,
 ) -> PyResult<Vec<GsiDefinition>> {
     let mut result = Vec::new();
 
     for item in gsis.iter() {
-        let dict = item.downcast::<pyo3::types::PyDict>()?;
+        let dict = item.cast::<pyo3::types::PyDict>()?;
 
         let index_name: String = dict
             .get_item("index_name")?
