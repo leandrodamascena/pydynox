@@ -5,23 +5,30 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
+from pydynox._internal._logging import _log_operation, _log_warning
+
 if TYPE_CHECKING:
     from pydynox import pydynox_core
+    from pydynox._internal._metrics import OperationMetrics
+
+# Threshold for slow query warning (ms)
+_SLOW_QUERY_THRESHOLD_MS = 100.0
 
 
 class QueryResult:
     """Result of a DynamoDB query with automatic pagination.
 
     Iterate over results and access `last_evaluated_key` for manual pagination.
+    Access `metrics` for timing and capacity info from the last page fetch.
 
     Example:
         >>> results = client.query("users", key_condition_expression="pk = :pk", ...)
         >>> for item in results:
         ...     print(item["name"])
         >>>
-        >>> # Manual pagination if needed
-        >>> if results.last_evaluated_key:
-        ...     next_page = client.query(..., last_evaluated_key=results.last_evaluated_key)
+        >>> # Access metrics from last fetch
+        >>> print(results.metrics.duration_ms)
+        >>> print(results.metrics.consumed_rcu)
     """
 
     def __init__(
@@ -55,6 +62,7 @@ class QueryResult:
         self._last_evaluated_key: dict[str, Any] | None = None
         self._exhausted = False
         self._first_fetch = True
+        self._metrics: OperationMetrics | None = None
 
     @property
     def last_evaluated_key(self) -> dict[str, Any] | None:
@@ -64,6 +72,15 @@ class QueryResult:
         Use this to continue pagination in a new query.
         """
         return self._last_evaluated_key
+
+    @property
+    def metrics(self) -> OperationMetrics | None:
+        """Metrics from the last page fetch.
+
+        Returns None if no pages have been fetched yet.
+        Updated after each page fetch during iteration.
+        """
+        return self._metrics
 
     def __iter__(self) -> "QueryResult":
         return self
@@ -106,7 +123,7 @@ class QueryResult:
             rcu_estimate = float(self._limit) if self._limit else 1.0
             self._acquire_rcu(rcu_estimate)
 
-        items, self._last_evaluated_key = self._client.query_page(
+        items, self._last_evaluated_key, self._metrics = self._client.query_page(
             self._table,
             self._key_condition_expression,
             filter_expression=self._filter_expression,
@@ -120,6 +137,17 @@ class QueryResult:
 
         self._current_page = items
         self._page_index = 0
+
+        # Log the query
+        _log_operation(
+            "query",
+            self._table,
+            self._metrics.duration_ms,
+            consumed_rcu=self._metrics.consumed_rcu,
+            items_count=self._metrics.items_count,
+        )
+        if self._metrics.duration_ms > _SLOW_QUERY_THRESHOLD_MS:
+            _log_warning("query", f"slow operation ({self._metrics.duration_ms:.1f}ms)")
 
         # If no last_key, this is the final page
         if self._last_evaluated_key is None:

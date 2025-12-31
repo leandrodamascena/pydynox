@@ -3,15 +3,17 @@
 //! This module handles the conversion between Python dicts and DynamoDB
 //! AttributeValue types.
 
-use aws_sdk_dynamodb::types::AttributeValue;
+use aws_sdk_dynamodb::types::{AttributeValue, ReturnConsumedCapacity};
 use aws_sdk_dynamodb::Client;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::Instant;
 use tokio::runtime::Runtime;
 
 use crate::errors::map_sdk_error;
+use crate::metrics::OperationMetrics;
 use crate::serialization::{dynamo_to_py, py_to_dynamo};
 
 /// Convert a Python dict to a HashMap of DynamoDB AttributeValues.
@@ -272,6 +274,7 @@ fn attribute_value_to_py(py: Python<'_>, value: AttributeValue) -> PyResult<Py<P
 // ============================================================================
 
 /// Put an item into a DynamoDB table.
+/// Returns OperationMetrics with timing and capacity info.
 #[allow(clippy::too_many_arguments)]
 pub fn put_item(
     py: Python<'_>,
@@ -282,7 +285,7 @@ pub fn put_item(
     condition_expression: Option<String>,
     expression_attribute_names: Option<&Bound<'_, PyDict>>,
     expression_attribute_values: Option<&Bound<'_, PyDict>>,
-) -> PyResult<()> {
+) -> PyResult<OperationMetrics> {
     let dynamo_item = py_dict_to_attribute_values(py, item)?;
 
     let client = client.clone();
@@ -291,7 +294,8 @@ pub fn put_item(
     let mut request = client
         .put_item()
         .table_name(table_name)
-        .set_item(Some(dynamo_item));
+        .set_item(Some(dynamo_item))
+        .return_consumed_capacity(ReturnConsumedCapacity::Total);
 
     if let Some(condition) = condition_expression {
         request = request.condition_expression(condition);
@@ -312,43 +316,60 @@ pub fn put_item(
         }
     }
 
+    let start = Instant::now();
     let result = runtime.block_on(async { request.send().await });
+    let duration_ms = start.elapsed().as_secs_f64() * 1000.0;
 
     match result {
-        Ok(_) => Ok(()),
+        Ok(output) => {
+            let consumed_wcu = output.consumed_capacity().and_then(|c| c.capacity_units());
+            Ok(OperationMetrics::with_capacity(
+                duration_ms,
+                None,
+                consumed_wcu,
+                None,
+            ))
+        }
         Err(e) => Err(map_sdk_error(e, Some(table))),
     }
 }
 
 /// Get an item from a DynamoDB table by its key.
+/// Returns (item_or_none, OperationMetrics).
 pub fn get_item(
     py: Python<'_>,
     client: &Client,
     runtime: &Arc<Runtime>,
     table: &str,
     key: &Bound<'_, PyDict>,
-) -> PyResult<Option<Py<PyAny>>> {
+) -> PyResult<(Option<Py<PyAny>>, OperationMetrics)> {
     let dynamo_key = py_dict_to_attribute_values(py, key)?;
 
     let client = client.clone();
     let table_name = table.to_string();
 
+    let start = Instant::now();
     let result = runtime.block_on(async {
         client
             .get_item()
             .table_name(table_name)
             .set_key(Some(dynamo_key))
+            .return_consumed_capacity(ReturnConsumedCapacity::Total)
             .send()
             .await
     });
+    let duration_ms = start.elapsed().as_secs_f64() * 1000.0;
 
     match result {
         Ok(output) => {
+            let consumed_rcu = output.consumed_capacity().and_then(|c| c.capacity_units());
+            let metrics = OperationMetrics::with_capacity(duration_ms, consumed_rcu, None, None);
+
             if let Some(item) = output.item {
                 let py_dict = attribute_values_to_py_dict(py, item)?;
-                Ok(Some(py_dict.into_any().unbind()))
+                Ok((Some(py_dict.into_any().unbind()), metrics))
             } else {
-                Ok(None)
+                Ok((None, metrics))
             }
         }
         Err(e) => Err(map_sdk_error(e, Some(table))),
@@ -356,6 +377,7 @@ pub fn get_item(
 }
 
 /// Delete an item from a DynamoDB table.
+/// Returns OperationMetrics with timing and capacity info.
 #[allow(clippy::too_many_arguments)]
 pub fn delete_item(
     py: Python<'_>,
@@ -366,7 +388,7 @@ pub fn delete_item(
     condition_expression: Option<String>,
     expression_attribute_names: Option<&Bound<'_, PyDict>>,
     expression_attribute_values: Option<&Bound<'_, PyDict>>,
-) -> PyResult<()> {
+) -> PyResult<OperationMetrics> {
     let dynamo_key = py_dict_to_attribute_values(py, key)?;
 
     let client = client.clone();
@@ -375,7 +397,8 @@ pub fn delete_item(
     let mut request = client
         .delete_item()
         .table_name(table_name)
-        .set_key(Some(dynamo_key));
+        .set_key(Some(dynamo_key))
+        .return_consumed_capacity(ReturnConsumedCapacity::Total);
 
     if let Some(condition) = condition_expression {
         request = request.condition_expression(condition);
@@ -396,15 +419,26 @@ pub fn delete_item(
         }
     }
 
+    let start = Instant::now();
     let result = runtime.block_on(async { request.send().await });
+    let duration_ms = start.elapsed().as_secs_f64() * 1000.0;
 
     match result {
-        Ok(_) => Ok(()),
+        Ok(output) => {
+            let consumed_wcu = output.consumed_capacity().and_then(|c| c.capacity_units());
+            Ok(OperationMetrics::with_capacity(
+                duration_ms,
+                None,
+                consumed_wcu,
+                None,
+            ))
+        }
         Err(e) => Err(map_sdk_error(e, Some(table))),
     }
 }
 
 /// Update an item in a DynamoDB table.
+/// Returns OperationMetrics with timing and capacity info.
 #[allow(clippy::too_many_arguments)]
 pub fn update_item(
     py: Python<'_>,
@@ -417,7 +451,7 @@ pub fn update_item(
     condition_expression: Option<String>,
     expression_attribute_names: Option<&Bound<'_, PyDict>>,
     expression_attribute_values: Option<&Bound<'_, PyDict>>,
-) -> PyResult<()> {
+) -> PyResult<OperationMetrics> {
     let dynamo_key = py_dict_to_attribute_values(py, key)?;
 
     let client = client.clone();
@@ -426,7 +460,8 @@ pub fn update_item(
     let mut request = client
         .update_item()
         .table_name(table_name)
-        .set_key(Some(dynamo_key));
+        .set_key(Some(dynamo_key))
+        .return_consumed_capacity(ReturnConsumedCapacity::Total);
 
     let (final_update_expr, auto_names, auto_values) = if let Some(upd) = updates {
         build_set_expression(py, upd)?
@@ -465,10 +500,20 @@ pub fn update_item(
         request = request.condition_expression(condition);
     }
 
+    let start = Instant::now();
     let result = runtime.block_on(async { request.send().await });
+    let duration_ms = start.elapsed().as_secs_f64() * 1000.0;
 
     match result {
-        Ok(_) => Ok(()),
+        Ok(output) => {
+            let consumed_wcu = output.consumed_capacity().and_then(|c| c.capacity_units());
+            Ok(OperationMetrics::with_capacity(
+                duration_ms,
+                None,
+                consumed_wcu,
+                None,
+            ))
+        }
         Err(e) => Err(map_sdk_error(e, Some(table))),
     }
 }
@@ -508,10 +553,11 @@ fn build_set_expression(
 // Query Operation
 // ============================================================================
 
-/// Query result containing items and pagination info.
+/// Query result containing items, pagination info, and metrics.
 pub struct QueryResult {
     pub items: Vec<Py<PyAny>>,
     pub last_evaluated_key: Option<Py<PyAny>>,
+    pub metrics: OperationMetrics,
 }
 
 /// Query items from a DynamoDB table.
@@ -552,7 +598,8 @@ pub fn query(
     let mut request = client
         .query()
         .table_name(table_name.clone())
-        .key_condition_expression(key_cond);
+        .key_condition_expression(key_cond)
+        .return_consumed_capacity(ReturnConsumedCapacity::Total);
 
     if let Some(filter) = filter_expression {
         request = request.filter_expression(filter);
@@ -590,10 +637,16 @@ pub fn query(
         request = request.index_name(idx);
     }
 
+    let start = Instant::now();
     let result = runtime.block_on(async { request.send().await });
+    let duration_ms = start.elapsed().as_secs_f64() * 1000.0;
 
     match result {
         Ok(output) => {
+            let items_count = output.items.as_ref().map(|i| i.len()).unwrap_or(0);
+            let scanned_count = output.scanned_count();
+            let consumed_rcu = output.consumed_capacity().and_then(|c| c.capacity_units());
+
             let mut items = Vec::new();
             if let Some(dynamo_items) = output.items {
                 for item in dynamo_items {
@@ -609,9 +662,14 @@ pub fn query(
                 None
             };
 
+            let metrics = OperationMetrics::with_capacity(duration_ms, consumed_rcu, None, None)
+                .with_items_count(items_count)
+                .with_scanned_count(scanned_count as usize);
+
             Ok(QueryResult {
                 items,
                 last_evaluated_key: last_key,
+                metrics,
             })
         }
         Err(e) => Err(map_sdk_error(e, Some(table))),

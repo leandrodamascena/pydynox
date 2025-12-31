@@ -29,6 +29,16 @@ Example:
     >>> # With rate limiting
     >>> from pydynox import DynamoDBClient, FixedRate
     >>> client = DynamoDBClient(rate_limit=FixedRate(rcu=50))
+
+    >>> # Access metrics from operations
+    >>> item = client.get_item("users", {"pk": "USER#1"})
+    >>> print(item["name"])              # Works like a normal dict
+    >>> print(item.metrics.duration_ms)  # Access metrics
+
+    >>> # Custom logger with SDK debug
+    >>> from pydynox import set_logger
+    >>> from aws_lambda_powertools import Logger
+    >>> set_logger(Logger(), sdk_debug=True)
 """
 
 from __future__ import annotations
@@ -37,6 +47,11 @@ from __future__ import annotations
 from pydynox import pydynox_core  # noqa: F401
 
 # Import Python wrappers
+from pydynox._internal._logging import (
+    set_correlation_id,
+    set_logger,
+)
+from pydynox._internal._metrics import OperationMetrics
 from pydynox.batch_operations import BatchWriter
 from pydynox.client import DynamoDBClient
 from pydynox.conditions import Condition
@@ -62,6 +77,11 @@ __all__ = [
     "Condition",
     "Model",
     "ModelConfig",
+    # Metrics (public class for type hints)
+    "OperationMetrics",
+    # Logging
+    "set_logger",
+    "set_correlation_id",
     # Client config
     "set_default_client",
     "get_default_client",

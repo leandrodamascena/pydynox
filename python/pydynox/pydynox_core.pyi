@@ -1,19 +1,22 @@
-"""Type stubs for pydynox_core Rust module.
-
-This file provides type hints for the Rust-implemented pydynox_core module.
-"""
+"""Type stubs for pydynox_core (Rust module)."""
 
 from __future__ import annotations
 
 from typing import Any
 
-# =============================================================================
-# DynamoDB Client
-# =============================================================================
+# Metrics
+class OperationMetrics:
+    duration_ms: float
+    consumed_rcu: float | None
+    consumed_wcu: float | None
+    request_id: str | None
+    items_count: int | None
+    scanned_count: int | None
 
+    def __init__(self, duration_ms: float = 0.0) -> None: ...
+
+# Client
 class DynamoDBClient:
-    """DynamoDB client with flexible credential configuration."""
-
     def __init__(
         self,
         region: str | None = None,
@@ -32,8 +35,12 @@ class DynamoDBClient:
         condition_expression: str | None = None,
         expression_attribute_names: dict[str, str] | None = None,
         expression_attribute_values: dict[str, Any] | None = None,
-    ) -> None: ...
-    def get_item(self, table: str, key: dict[str, Any]) -> dict[str, Any] | None: ...
+    ) -> OperationMetrics: ...
+    def get_item(
+        self,
+        table: str,
+        key: dict[str, Any],
+    ) -> tuple[dict[str, Any] | None, OperationMetrics]: ...
     def delete_item(
         self,
         table: str,
@@ -41,7 +48,7 @@ class DynamoDBClient:
         condition_expression: str | None = None,
         expression_attribute_names: dict[str, str] | None = None,
         expression_attribute_values: dict[str, Any] | None = None,
-    ) -> None: ...
+    ) -> OperationMetrics: ...
     def update_item(
         self,
         table: str,
@@ -51,7 +58,7 @@ class DynamoDBClient:
         condition_expression: str | None = None,
         expression_attribute_names: dict[str, str] | None = None,
         expression_attribute_values: dict[str, Any] | None = None,
-    ) -> None: ...
+    ) -> OperationMetrics: ...
     def query_page(
         self,
         table: str,
@@ -63,7 +70,7 @@ class DynamoDBClient:
         exclusive_start_key: dict[str, Any] | None = None,
         scan_index_forward: bool | None = None,
         index_name: str | None = None,
-    ) -> tuple[list[dict[str, Any]], dict[str, Any] | None]: ...
+    ) -> tuple[list[dict[str, Any]], dict[str, Any] | None, OperationMetrics]: ...
     def batch_write(
         self,
         table: str,
@@ -97,84 +104,63 @@ class DynamoDBClient:
         timeout_seconds: int | None = None,
     ) -> None: ...
 
-# =============================================================================
-# Rate Limiting
-# =============================================================================
-
-class RateLimitMetrics:
-    """Metrics for monitoring rate limiter behavior."""
-
-    @property
-    def consumed_rcu(self) -> float: ...
-    @property
-    def consumed_wcu(self) -> float: ...
-    @property
-    def throttle_count(self) -> int: ...
-    def reset(self) -> None: ...
-
+# Rate limiting
 class FixedRate:
-    """Fixed rate limiter."""
-
     def __init__(
         self,
-        rcu: float | None = None,
-        wcu: float | None = None,
-        burst: float | None = None,
+        rcu: int | None = None,
+        wcu: int | None = None,
+        burst: int | None = None,
     ) -> None: ...
-    @property
-    def rcu(self) -> float | None: ...
-    @property
-    def wcu(self) -> float | None: ...
-    @property
-    def metrics(self) -> RateLimitMetrics: ...
-    @property
-    def consumed_rcu(self) -> float: ...
-    @property
-    def consumed_wcu(self) -> float: ...
-    @property
-    def throttle_count(self) -> int: ...
     def _acquire_rcu(self, rcu: float) -> None: ...
     def _acquire_wcu(self, wcu: float) -> None: ...
     def _on_throttle(self) -> None: ...
 
 class AdaptiveRate:
-    """Adaptive rate limiter that adjusts based on throttling."""
-
     def __init__(
         self,
-        max_rcu: float,
-        max_wcu: float | None = None,
-        min_rcu: float | None = None,
-        min_wcu: float | None = None,
+        max_rcu: int,
+        max_wcu: int | None = None,
+        min_rcu: int = 1,
+        min_wcu: int = 1,
     ) -> None: ...
-    @property
-    def current_rcu(self) -> float: ...
-    @property
-    def current_wcu(self) -> float | None: ...
-    @property
-    def max_rcu(self) -> float: ...
-    @property
-    def max_wcu(self) -> float | None: ...
-    @property
-    def consumed_rcu(self) -> float: ...
-    @property
-    def consumed_wcu(self) -> float: ...
-    @property
-    def throttle_count(self) -> int: ...
     def _acquire_rcu(self, rcu: float) -> None: ...
     def _acquire_wcu(self, wcu: float) -> None: ...
     def _on_throttle(self) -> None: ...
 
-# =============================================================================
+class RateLimitMetrics:
+    rcu_acquired: float
+    wcu_acquired: float
+    throttle_count: int
+
+# Tracing
+def enable_sdk_debug() -> None: ...
+
+# Serialization
+def py_to_dynamo(value: Any) -> dict[str, Any]: ...
+def dynamo_to_py(value: dict[str, Any]) -> Any: ...
+def item_to_dynamo(item: dict[str, Any]) -> dict[str, Any]: ...
+def item_from_dynamo(item: dict[str, Any]) -> dict[str, Any]: ...
+
+# Exceptions
+class PydynoxError(Exception): ...
+class TableNotFoundError(PydynoxError): ...
+class TableAlreadyExistsError(PydynoxError): ...
+class ValidationError(PydynoxError): ...
+class ConditionCheckFailedError(PydynoxError): ...
+class TransactionCanceledError(PydynoxError): ...
+class ThrottlingError(PydynoxError): ...
+class AccessDeniedError(PydynoxError): ...
+class CredentialsError(PydynoxError): ...
+class SerializationError(PydynoxError): ...
+class ConnectionError(PydynoxError): ...
+class EncryptionError(PydynoxError): ...
+
 # Compression
-# =============================================================================
-
 class CompressionAlgorithm:
-    """Compression algorithm options."""
-
-    Zstd: int
-    Lz4: int
-    Gzip: int
+    Zstd: CompressionAlgorithm
+    Lz4: CompressionAlgorithm
+    Gzip: CompressionAlgorithm
 
 def compress(
     data: bytes,
@@ -199,12 +185,9 @@ def compress_string(
 ) -> str: ...
 def decompress_string(value: str) -> str: ...
 
-# =============================================================================
 # Encryption
-# =============================================================================
-
 class KmsEncryptor:
-    """KMS encryptor for field-level encryption."""
+    key_id: str
 
     def __init__(
         self,
@@ -216,78 +199,3 @@ class KmsEncryptor:
     def decrypt(self, ciphertext: str) -> str: ...
     @staticmethod
     def is_encrypted(value: str) -> bool: ...
-    @property
-    def key_id(self) -> str: ...
-
-# =============================================================================
-# Serialization
-# =============================================================================
-
-def py_to_dynamo_py(value: Any) -> dict[str, Any]: ...
-def dynamo_to_py_py(value: dict[str, Any]) -> Any: ...
-def item_to_dynamo(item: dict[str, Any]) -> dict[str, dict[str, Any]]: ...
-def item_from_dynamo(item: dict[str, dict[str, Any]]) -> dict[str, Any]: ...
-
-# =============================================================================
-# Exceptions
-# =============================================================================
-
-class PydynoxError(Exception):
-    """Base exception for all pydynox errors."""
-
-    ...
-
-class TableNotFoundError(PydynoxError):
-    """Table does not exist."""
-
-    ...
-
-class TableAlreadyExistsError(PydynoxError):
-    """Table already exists."""
-
-    ...
-
-class ValidationError(PydynoxError):
-    """Invalid request."""
-
-    ...
-
-class ConditionCheckFailedError(PydynoxError):
-    """Condition expression failed."""
-
-    ...
-
-class TransactionCanceledError(PydynoxError):
-    """Transaction was canceled."""
-
-    ...
-
-class ThrottlingError(PydynoxError):
-    """Rate limit exceeded."""
-
-    ...
-
-class AccessDeniedError(PydynoxError):
-    """IAM permission denied."""
-
-    ...
-
-class CredentialsError(PydynoxError):
-    """AWS credentials issue."""
-
-    ...
-
-class SerializationError(PydynoxError):
-    """Data conversion error."""
-
-    ...
-
-class ConnectionError(PydynoxError):
-    """Network/endpoint issue."""
-
-    ...
-
-class EncryptionError(PydynoxError):
-    """KMS/encryption error."""
-
-    ...

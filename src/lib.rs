@@ -17,9 +17,11 @@ mod client;
 mod compression;
 mod encryption;
 mod errors;
+mod metrics;
 pub mod rate_limiter;
 mod serialization;
 mod table_operations;
+mod tracing;
 mod transaction_operations;
 
 use client::DynamoDBClient;
@@ -53,6 +55,12 @@ fn pydynox_core(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Register encryption classes
     encryption::register_encryption(m)?;
+
+    // Register metrics class
+    metrics::register_metrics(m)?;
+
+    // Register tracing functions
+    tracing::register_tracing(m)?;
 
     Ok(())
 }

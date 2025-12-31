@@ -142,6 +142,8 @@ The client also has methods for direct DynamoDB operations:
 | `batch_get(table, keys)` | Batch get |
 | `transact_write(operations)` | Transaction |
 
+All operations return metrics (duration, RCU/WCU consumed). See [observability](observability.md) for details.
+
 Most of the time you'll use the Model ORM instead of these methods directly.
 
 ## Credential priority
