@@ -1,5 +1,7 @@
 """Internal encryption functions. Do not use directly."""
 
+from __future__ import annotations
+
 from enum import IntEnum
 
 from pydynox import pydynox_core

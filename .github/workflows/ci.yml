@@ -26,9 +26,9 @@ jobs:
         uses: astral-sh/setup-uv@v4
 
       - name: Set up Python
-        run: uv python install 3.11
+        run: uv python install 3.12
 
-      - name: Python lint
+      - name: Ruff check
         run: |
           uv venv
           uv pip install ruff
@@ -67,14 +67,26 @@ jobs:
         run: |
           source .venv/bin/activate
           pip install dist/*.whl
-          pip install pytest pytest-asyncio hypothesis "moto[dynamodb,server]" boto3 pydantic
+          pip install pytest pytest-asyncio hypothesis "moto[dynamodb,server]" boto3 pydantic mypy
 
       - name: Install wheel and dependencies (Windows)
         if: runner.os == 'Windows'
         run: |
           .venv\Scripts\activate
           pip install (Get-ChildItem dist\*.whl)
-          pip install pytest pytest-asyncio hypothesis "moto[dynamodb,server]" boto3 pydantic
+          pip install pytest pytest-asyncio hypothesis "moto[dynamodb,server]" boto3 pydantic mypy
+
+      - name: Mypy (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          source .venv/bin/activate
+          mypy python/pydynox/
+
+      - name: Mypy (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          .venv\Scripts\activate
+          mypy python/pydynox/
 
       - name: Run tests (Unix)
         if: runner.os != 'Windows'

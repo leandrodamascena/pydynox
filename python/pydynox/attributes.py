@@ -1,14 +1,16 @@
 """Attribute types for Model definitions."""
 
-from datetime import datetime, timedelta, timezone
-from typing import Any, Generic, Optional, TypeVar
+from __future__ import annotations
 
-from pydynox._compression import (
+from datetime import datetime, timedelta, timezone
+from typing import Any, Generic, TypeVar
+
+from pydynox._internal._compression import (
     CompressionAlgorithm,
     compress_string,
     decompress_string,
 )
-from pydynox._encryption import EncryptionMode, KmsEncryptor
+from pydynox._internal._encryption import EncryptionMode, KmsEncryptor
 
 T = TypeVar("T")
 
@@ -49,7 +51,7 @@ class Attribute(Generic[T]):
         self,
         hash_key: bool = False,
         range_key: bool = False,
-        default: Optional[T] = None,
+        default: T | None = None,
         null: bool = True,
     ):
         """Create an attribute.
@@ -64,15 +66,15 @@ class Attribute(Generic[T]):
         self.range_key = range_key
         self.default = default
         self.null = null
-        self.attr_name: Optional[str] = None
+        self.attr_name: str | None = None
 
-    def serialize(self, value: T) -> Any:
+    def serialize(self, value: T | None) -> Any:
         """Convert Python value to DynamoDB format."""
         return value
 
-    def deserialize(self, value: Any) -> T:
+    def deserialize(self, value: Any) -> T | None:
         """Convert DynamoDB value to Python format."""
-        return value
+        return value  # type: ignore[no-any-return]
 
 
 class StringAttribute(Attribute[str]):
@@ -102,13 +104,13 @@ class BinaryAttribute(Attribute[bytes]):
     attr_type = "B"
 
 
-class ListAttribute(Attribute[list]):
+class ListAttribute(Attribute[list[Any]]):
     """List attribute (DynamoDB type L)."""
 
     attr_type = "L"
 
 
-class MapAttribute(Attribute[dict]):
+class MapAttribute(Attribute[dict[str, Any]]):
     """Map attribute (DynamoDB type M)."""
 
     attr_type = "M"
@@ -207,7 +209,7 @@ class TTLAttribute(Attribute[datetime]):
 
     attr_type = "N"
 
-    def serialize(self, value: datetime) -> int:
+    def serialize(self, value: datetime | None) -> int | None:
         """Convert datetime to epoch timestamp.
 
         Args:
@@ -216,6 +218,8 @@ class TTLAttribute(Attribute[datetime]):
         Returns:
             Unix timestamp as integer.
         """
+        if value is None:
+            return None
         return int(value.timestamp())
 
     def deserialize(self, value: Any) -> datetime:
@@ -270,13 +274,13 @@ class CompressedAttribute(Attribute[str]):
 
     def __init__(
         self,
-        algorithm: Optional["CompressionAlgorithm"] = None,
-        level: Optional[int] = None,
+        algorithm: CompressionAlgorithm | None = None,
+        level: int | None = None,
         min_size: int = 100,
         threshold: float = 0.9,
         hash_key: bool = False,
         range_key: bool = False,
-        default: Optional[str] = None,
+        default: str | None = None,
         null: bool = True,
     ):
         """Create a compressed attribute.
@@ -302,7 +306,7 @@ class CompressedAttribute(Attribute[str]):
         self.min_size = min_size
         self.threshold = threshold
 
-    def serialize(self, value: str) -> str:
+    def serialize(self, value: str | None) -> str | None:
         """Compress and encode value for DynamoDB.
 
         Args:
@@ -324,7 +328,7 @@ class CompressedAttribute(Attribute[str]):
             self.threshold,
         )
 
-    def deserialize(self, value: Any) -> str:
+    def deserialize(self, value: Any) -> str | None:
         """Decompress value from DynamoDB.
 
         Args:
@@ -392,9 +396,9 @@ class EncryptedAttribute(Attribute[str]):
     def __init__(
         self,
         key_id: str,
-        mode: Optional["EncryptionMode"] = None,
-        region: Optional[str] = None,
-        context: Optional[dict] = None,
+        mode: EncryptionMode | None = None,
+        region: str | None = None,
+        context: dict[str, str] | None = None,
     ):
         """Create an encrypted attribute.
 
@@ -409,10 +413,10 @@ class EncryptedAttribute(Attribute[str]):
         self.mode = mode
         self.region = region
         self.context = context
-        self._encryptor: Optional["KmsEncryptor"] = None
+        self._encryptor: KmsEncryptor | None = None
 
     @property
-    def encryptor(self) -> "KmsEncryptor":
+    def encryptor(self) -> KmsEncryptor:
         """Lazy-load the KMS encryptor."""
         if self._encryptor is None:
             self._encryptor = KmsEncryptor(
@@ -434,7 +438,7 @@ class EncryptedAttribute(Attribute[str]):
             return True  # Default is ReadWrite
         return self.mode != EncryptionMode.WriteOnly
 
-    def serialize(self, value: str) -> Optional[str]:
+    def serialize(self, value: str | None) -> str | None:
         """Encrypt value for DynamoDB.
 
         Args:
@@ -452,7 +456,7 @@ class EncryptedAttribute(Attribute[str]):
 
         return self.encryptor.encrypt(value)
 
-    def deserialize(self, value: Any) -> Optional[str]:
+    def deserialize(self, value: Any) -> str | None:
         """Decrypt value from DynamoDB.
 
         Args:

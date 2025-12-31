@@ -14,6 +14,10 @@ Example:
     ...     print(f"Table not found: {e}")
 """
 
+from __future__ import annotations
+
+from typing import Any
+
 # Re-export exceptions from Rust core
 from pydynox import pydynox_core
 
@@ -41,7 +45,7 @@ class ItemTooLargeError(Exception):
         self,
         size: int,
         max_size: int,
-        item_key: dict | None = None,
+        item_key: dict[str, Any] | None = None,
     ):
         self.size = size
         self.max_size = max_size

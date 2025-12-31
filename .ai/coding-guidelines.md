@@ -307,8 +307,10 @@ pydynox/python/pydynox/
 ├── attributes.py        # Field types
 ├── query.py             # Query builder
 ├── exceptions.py        # Custom exceptions
-├── _compression.py      # Internal: compression
-├── _encryption.py       # Internal: encryption
+├── _internal/           # Internal helpers
+│   ├── __init__.py
+│   ├── _compression.py  # Internal: compression
+│   └── _encryption.py   # Internal: encryption
 └── integrations/        # Pydantic, etc.
 ```
 

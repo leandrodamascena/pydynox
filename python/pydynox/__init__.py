@@ -31,6 +31,8 @@ Example:
     >>> client = DynamoDBClient(rate_limit=FixedRate(rcu=50))
 """
 
+from __future__ import annotations
+
 # Import from Rust core
 from pydynox import pydynox_core  # noqa: F401
 

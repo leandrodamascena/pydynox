@@ -1,7 +1,7 @@
 """Tests for compression module."""
 
 import pytest
-from pydynox._compression import (
+from pydynox._internal._compression import (
     CompressionAlgorithm,
     compress,
     compress_string,

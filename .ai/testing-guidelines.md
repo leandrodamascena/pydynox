@@ -4,7 +4,7 @@
 
 ```
 pydynox/tests/
-├── python/           # Unit tests (mocked, fast)
+├── unit/             # Unit tests (mocked, fast)
 │   ├── conftest.py   # Shared fixtures
 │   ├── test_model.py
 │   ├── test_config.py
@@ -19,7 +19,7 @@ pydynox/tests/
 
 ```bash
 uv run pytest                    # All tests
-uv run pytest tests/python/      # Unit tests only
+uv run pytest tests/unit/        # Unit tests only
 uv run pytest tests/integration/ # Integration tests only
 
 # Specific test file

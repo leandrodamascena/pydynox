@@ -16,6 +16,8 @@ Example:
     >>> # Rate auto-adjusts based on throttling
 """
 
+from __future__ import annotations
+
 from pydynox import pydynox_core
 
 # Re-export Rust classes

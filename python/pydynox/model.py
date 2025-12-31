@@ -1,14 +1,16 @@
 """Model base class with ORM-style CRUD operations."""
 
-from datetime import datetime, timedelta, timezone
-from typing import Any, ClassVar, Optional, Type, TypeVar
+from __future__ import annotations
 
-from .attributes import Attribute, TTLAttribute
-from .client import DynamoDBClient
-from .config import ModelConfig, get_default_client
-from .exceptions import ItemTooLargeError
-from .hooks import HookType
-from .size import ItemSize, calculate_item_size
+from datetime import datetime, timedelta, timezone
+from typing import Any, ClassVar, TypeVar
+
+from pydynox.attributes import Attribute, TTLAttribute
+from pydynox.client import DynamoDBClient
+from pydynox.config import ModelConfig, get_default_client
+from pydynox.exceptions import ItemTooLargeError
+from pydynox.hooks import HookType
+from pydynox.size import ItemSize, calculate_item_size
 
 M = TypeVar("M", bound="Model")
 
@@ -16,12 +18,17 @@ M = TypeVar("M", bound="Model")
 class ModelMeta(type):
     """Metaclass that collects attributes and builds schema."""
 
-    def __new__(mcs, name: str, bases: tuple[type, ...], namespace: dict[str, Any]) -> "ModelMeta":
+    _attributes: dict[str, Attribute[Any]]
+    _hash_key: str | None
+    _range_key: str | None
+    _hooks: dict[HookType, list[Any]]
+
+    def __new__(mcs, name: str, bases: tuple[type, ...], namespace: dict[str, Any]) -> ModelMeta:
         # Collect attributes from parent classes
-        attributes: dict[str, Attribute] = {}
-        hash_key: Optional[str] = None
-        range_key: Optional[str] = None
-        hooks: dict[HookType, list] = {hook_type: [] for hook_type in HookType}
+        attributes: dict[str, Attribute[Any]] = {}
+        hash_key: str | None = None
+        range_key: str | None = None
+        hooks: dict[HookType, list[Any]] = {hook_type: [] for hook_type in HookType}
 
         for base in bases:
             if hasattr(base, "_attributes"):
@@ -47,7 +54,7 @@ class ModelMeta(type):
 
             # Collect hooks
             if callable(attr_value) and hasattr(attr_value, "_hook_type"):
-                hooks[attr_value._hook_type].append(attr_value)
+                hooks[getattr(attr_value, "_hook_type")].append(attr_value)
 
         # Create the class
         cls = super().__new__(mcs, name, bases, namespace)
@@ -105,11 +112,11 @@ class Model(metaclass=ModelMeta):
         >>> user.delete()
     """
 
-    _attributes: ClassVar[dict[str, Attribute]]
-    _hash_key: ClassVar[Optional[str]]
-    _range_key: ClassVar[Optional[str]]
-    _hooks: ClassVar[dict[HookType, list]]
-    _client_instance: ClassVar[Optional[DynamoDBClient]] = None
+    _attributes: ClassVar[dict[str, Attribute[Any]]]
+    _hash_key: ClassVar[str | None]
+    _range_key: ClassVar[str | None]
+    _hooks: ClassVar[dict[HookType, list[Any]]]
+    _client_instance: ClassVar[DynamoDBClient | None] = None
 
     model_config: ClassVar[ModelConfig]
 
@@ -166,7 +173,7 @@ class Model(metaclass=ModelMeta):
             raise ValueError(f"Model {cls.__name__} must define model_config")
         return cls.model_config.table
 
-    def _should_skip_hooks(self, skip_hooks: Optional[bool]) -> bool:
+    def _should_skip_hooks(self, skip_hooks: bool | None) -> bool:
         """Check if hooks should be skipped."""
         if skip_hooks is not None:
             return skip_hooks
@@ -180,7 +187,7 @@ class Model(metaclass=ModelMeta):
             hook(self)
 
     @classmethod
-    def get(cls: Type[M], **keys: Any) -> Optional[M]:
+    def get(cls: type[M], **keys: Any) -> M | None:
         """Get an item from DynamoDB by its key.
 
         Args:
@@ -207,7 +214,7 @@ class Model(metaclass=ModelMeta):
             instance._run_hooks(HookType.AFTER_LOAD)
         return instance
 
-    def save(self, condition: Optional[str] = None, skip_hooks: Optional[bool] = None) -> None:
+    def save(self, condition: str | None = None, skip_hooks: bool | None = None) -> None:
         """Save the model to DynamoDB.
 
         Creates a new item or replaces an existing one.
@@ -251,7 +258,7 @@ class Model(metaclass=ModelMeta):
         if not skip:
             self._run_hooks(HookType.AFTER_SAVE)
 
-    def delete(self, condition: Optional[str] = None, skip_hooks: Optional[bool] = None) -> None:
+    def delete(self, condition: str | None = None, skip_hooks: bool | None = None) -> None:
         """Delete the model from DynamoDB.
 
         Args:
@@ -277,7 +284,7 @@ class Model(metaclass=ModelMeta):
         if not skip:
             self._run_hooks(HookType.AFTER_DELETE)
 
-    def update(self, skip_hooks: Optional[bool] = None, **kwargs: Any) -> None:
+    def update(self, skip_hooks: bool | None = None, **kwargs: Any) -> None:
         """Update specific attributes on the model.
 
         Updates both the local instance and DynamoDB.
@@ -364,7 +371,7 @@ class Model(metaclass=ModelMeta):
         return calculate_item_size(item, detailed=detailed)
 
     @classmethod
-    def from_dict(cls: Type[M], data: dict[str, Any]) -> M:
+    def from_dict(cls: type[M], data: dict[str, Any]) -> M:
         """Create a model instance from a dict.
 
         Args:
@@ -396,7 +403,7 @@ class Model(metaclass=ModelMeta):
             return False
         return self._get_key() == other._get_key()
 
-    def _get_ttl_attr_name(self) -> Optional[str]:
+    def _get_ttl_attr_name(self) -> str | None:
         """Find the TTLAttribute field name if one exists."""
         for attr_name, attr in self._attributes.items():
             if isinstance(attr, TTLAttribute):
@@ -419,14 +426,14 @@ class Model(metaclass=ModelMeta):
         if ttl_attr is None:
             return False
 
-        expires_at = getattr(self, ttl_attr, None)
+        expires_at: datetime | None = getattr(self, ttl_attr, None)
         if expires_at is None:
             return False
 
-        return datetime.now(timezone.utc) > expires_at
+        return bool(datetime.now(timezone.utc) > expires_at)
 
     @property
-    def expires_in(self) -> Optional[timedelta]:
+    def expires_in(self) -> timedelta | None:
         """Get time remaining until expiration.
 
         Returns:
@@ -442,11 +449,11 @@ class Model(metaclass=ModelMeta):
         if ttl_attr is None:
             return None
 
-        expires_at = getattr(self, ttl_attr, None)
+        expires_at: datetime | None = getattr(self, ttl_attr, None)
         if expires_at is None:
             return None
 
-        remaining = expires_at - datetime.now(timezone.utc)
+        remaining: timedelta = expires_at - datetime.now(timezone.utc)
         if remaining.total_seconds() < 0:
             return None
 
@@ -472,4 +479,4 @@ class Model(metaclass=ModelMeta):
         if ttl_attr is None:
             raise ValueError(f"Model {self.__class__.__name__} has no TTLAttribute")
 
-        self.update(**{ttl_attr: new_expiration})
+        self.update(skip_hooks=None, **{ttl_attr: new_expiration})

@@ -19,7 +19,9 @@ Example:
     >>> user = User.get(pk="USER#1", sk="PROFILE")
 """
 
-from typing import Any, Optional, Type, TypeVar
+from __future__ import annotations
+
+from typing import Any, TypeVar
 
 try:
     from pydantic import BaseModel
@@ -44,10 +46,10 @@ def _check_pydantic() -> None:
 def dynamodb_model(
     table: str,
     hash_key: str,
-    range_key: Optional[str] = None,
-    region: Optional[str] = None,
-    endpoint_url: Optional[str] = None,
-):
+    range_key: str | None = None,
+    region: str | None = None,
+    endpoint_url: str | None = None,
+) -> Any:
     """Decorator to add DynamoDB operations to a Pydantic model.
 
     Args:
@@ -75,7 +77,7 @@ def dynamodb_model(
     """
     _check_pydantic()
 
-    def decorator(cls: Type[T]) -> Type[T]:
+    def decorator(cls: type[T]) -> type[T]:
         if not issubclass(cls, BaseModel):
             raise TypeError(f"{cls.__name__} must be a Pydantic BaseModel subclass")
 
@@ -90,17 +92,17 @@ def dynamodb_model(
         # Add methods
         cls._get_client = classmethod(_get_client_method)  # type: ignore
         cls.get = classmethod(_get_method)  # type: ignore
-        cls.save = _save_method
-        cls.delete = _delete_method
-        cls.update = _update_method
-        cls._get_key = _get_key_method
+        cls.save = _save_method  # type: ignore
+        cls.delete = _delete_method  # type: ignore
+        cls.update = _update_method  # type: ignore
+        cls._get_key = _get_key_method  # type: ignore
 
         return cls
 
     return decorator
 
 
-def _get_client_method(cls: Type[T]) -> DynamoDBClient:
+def _get_client_method(cls: type[T]) -> DynamoDBClient:
     """Get or create the DynamoDB client."""
     if cls._pydynox_client is None:  # type: ignore
         cls._pydynox_client = DynamoDBClient(  # type: ignore
@@ -110,7 +112,7 @@ def _get_client_method(cls: Type[T]) -> DynamoDBClient:
     return cls._pydynox_client  # type: ignore
 
 
-def _get_method(cls: Type[T], **keys: Any) -> Optional[T]:
+def _get_method(cls: type[T], **keys: Any) -> T | None:
     """Get an item from DynamoDB by its key.
 
     Args:
@@ -123,7 +125,7 @@ def _get_method(cls: Type[T], **keys: Any) -> Optional[T]:
     item = client.get_item(cls._pydynox_table, keys)  # type: ignore
     if item is None:
         return None
-    return cls.model_validate(item)
+    return cls.model_validate(item)  # type: ignore
 
 
 def _save_method(self: T) -> None:
@@ -176,13 +178,13 @@ def _get_key_method(self: T) -> dict[str, Any]:
 
 
 def from_pydantic(
-    model_class: Type[T],
+    model_class: type[T],
     table: str,
     hash_key: str,
-    range_key: Optional[str] = None,
-    region: Optional[str] = None,
-    endpoint_url: Optional[str] = None,
-) -> Type[T]:
+    range_key: str | None = None,
+    region: str | None = None,
+    endpoint_url: str | None = None,
+) -> Any:
     """Create a DynamoDB-enabled model from a Pydantic model.
 
     This is an alternative to the @dynamodb_model decorator.

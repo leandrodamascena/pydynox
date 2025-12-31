@@ -16,10 +16,13 @@ Example:
     ...         print(f"User {self.pk} saved")
 """
 
-from enum import Enum
-from typing import Callable, TypeVar
+from __future__ import annotations
 
-F = TypeVar("F", bound=Callable)
+from enum import Enum
+from collections.abc import Callable
+from typing import Any, TypeVar
+
+F = TypeVar("F", bound=Callable[..., Any])
 
 
 class HookType(Enum):
@@ -36,41 +39,41 @@ class HookType(Enum):
 
 def before_save(func: F) -> F:
     """Run before save(). Use for validation or transformation."""
-    func._hook_type = HookType.BEFORE_SAVE
+    setattr(func, "_hook_type", HookType.BEFORE_SAVE)
     return func
 
 
 def after_save(func: F) -> F:
     """Run after save(). Use for logging or side effects."""
-    func._hook_type = HookType.AFTER_SAVE
+    setattr(func, "_hook_type", HookType.AFTER_SAVE)
     return func
 
 
 def before_delete(func: F) -> F:
     """Run before delete(). Use for validation."""
-    func._hook_type = HookType.BEFORE_DELETE
+    setattr(func, "_hook_type", HookType.BEFORE_DELETE)
     return func
 
 
 def after_delete(func: F) -> F:
     """Run after delete(). Use for cleanup."""
-    func._hook_type = HookType.AFTER_DELETE
+    setattr(func, "_hook_type", HookType.AFTER_DELETE)
     return func
 
 
 def before_update(func: F) -> F:
     """Run before update(). Use for validation."""
-    func._hook_type = HookType.BEFORE_UPDATE
+    setattr(func, "_hook_type", HookType.BEFORE_UPDATE)
     return func
 
 
 def after_update(func: F) -> F:
     """Run after update(). Use for logging or side effects."""
-    func._hook_type = HookType.AFTER_UPDATE
+    setattr(func, "_hook_type", HookType.AFTER_UPDATE)
     return func
 
 
 def after_load(func: F) -> F:
     """Run after get() or query(). Use for transformation."""
-    func._hook_type = HookType.AFTER_LOAD
+    setattr(func, "_hook_type", HookType.AFTER_LOAD)
     return func

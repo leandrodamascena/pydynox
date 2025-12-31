@@ -3,7 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from pydynox._encryption import EncryptionMode, KmsEncryptor
+from pydynox._internal._encryption import EncryptionMode, KmsEncryptor
 from pydynox.attributes import EncryptedAttribute
 
 # --- EncryptionMode ---
