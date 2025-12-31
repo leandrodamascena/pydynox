@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .client import DynamoDBClient
+    from pydynox.client import DynamoDBClient
 
 
 # Global default client
-_default_client: Optional["DynamoDBClient"] = None
+_default_client: DynamoDBClient | None = None
 
 
 def set_default_client(client: "DynamoDBClient") -> None:
@@ -31,7 +31,7 @@ def set_default_client(client: "DynamoDBClient") -> None:
     _default_client = client
 
 
-def get_default_client() -> Optional["DynamoDBClient"]:
+def get_default_client() -> DynamoDBClient | None:
     """Get the default client.
 
     Returns:
@@ -83,6 +83,6 @@ class ModelConfig:
     """
 
     table: str
-    client: Optional["DynamoDBClient"] = field(default=None)
+    client: DynamoDBClient | None = field(default=None)
     skip_hooks: bool = field(default=False)
-    max_size: Optional[int] = field(default=None)
+    max_size: int | None = field(default=None)

@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Any
 
-from .query import QueryResult
+from pydynox.query import QueryResult
 
 if TYPE_CHECKING:
-    from .rate_limit import AdaptiveRate, FixedRate
+    from pydynox.rate_limit import AdaptiveRate, FixedRate
 
 
 class DynamoDBClient:
@@ -44,13 +44,13 @@ class DynamoDBClient:
 
     def __init__(
         self,
-        region: Optional[str] = None,
-        access_key: Optional[str] = None,
-        secret_key: Optional[str] = None,
-        session_token: Optional[str] = None,
-        profile: Optional[str] = None,
-        endpoint_url: Optional[str] = None,
-        rate_limit: Optional[Union[FixedRate, AdaptiveRate]] = None,
+        region: str | None = None,
+        access_key: str | None = None,
+        secret_key: str | None = None,
+        session_token: str | None = None,
+        profile: str | None = None,
+        endpoint_url: str | None = None,
+        rate_limit: FixedRate | AdaptiveRate | None = None,
     ):
         from pydynox import pydynox_core
 
@@ -65,7 +65,7 @@ class DynamoDBClient:
         self._rate_limit = rate_limit
 
     @property
-    def rate_limit(self) -> Optional[Union[FixedRate, AdaptiveRate]]:
+    def rate_limit(self) -> FixedRate | AdaptiveRate | None:
         """Get the rate limiter for this client."""
         return self._rate_limit
 
@@ -105,7 +105,7 @@ class DynamoDBClient:
         self._acquire_wcu(1.0)
         self._client.put_item(table, item)
 
-    def get_item(self, table: str, key: dict[str, Any]) -> Optional[dict[str, Any]]:
+    def get_item(self, table: str, key: dict[str, Any]) -> dict[str, Any] | None:
         """Get an item from a DynamoDB table by its key.
 
         Args:
@@ -127,9 +127,9 @@ class DynamoDBClient:
         self,
         table: str,
         key: dict[str, Any],
-        condition_expression: Optional[str] = None,
-        expression_attribute_names: Optional[dict[str, str]] = None,
-        expression_attribute_values: Optional[dict[str, Any]] = None,
+        condition_expression: str | None = None,
+        expression_attribute_names: dict[str, str] | None = None,
+        expression_attribute_values: dict[str, Any] | None = None,
     ) -> None:
         """Delete an item from a DynamoDB table.
 
@@ -156,11 +156,11 @@ class DynamoDBClient:
         self,
         table: str,
         key: dict[str, Any],
-        updates: Optional[dict[str, Any]] = None,
-        update_expression: Optional[str] = None,
-        condition_expression: Optional[str] = None,
-        expression_attribute_names: Optional[dict[str, str]] = None,
-        expression_attribute_values: Optional[dict[str, Any]] = None,
+        updates: dict[str, Any] | None = None,
+        update_expression: str | None = None,
+        condition_expression: str | None = None,
+        expression_attribute_names: dict[str, str] | None = None,
+        expression_attribute_values: dict[str, Any] | None = None,
     ) -> None:
         """Update an item in a DynamoDB table.
 
@@ -201,13 +201,13 @@ class DynamoDBClient:
         self,
         table: str,
         key_condition_expression: str,
-        filter_expression: Optional[str] = None,
-        expression_attribute_names: Optional[dict[str, str]] = None,
-        expression_attribute_values: Optional[dict[str, Any]] = None,
-        limit: Optional[int] = None,
-        scan_index_forward: Optional[bool] = None,
-        index_name: Optional[str] = None,
-        last_evaluated_key: Optional[dict[str, Any]] = None,
+        filter_expression: str | None = None,
+        expression_attribute_names: dict[str, str] | None = None,
+        expression_attribute_values: dict[str, Any] | None = None,
+        limit: int | None = None,
+        scan_index_forward: bool | None = None,
+        index_name: str | None = None,
+        last_evaluated_key: dict[str, Any] | None = None,
     ) -> QueryResult:
         """Query items from a DynamoDB table.
 
@@ -257,8 +257,8 @@ class DynamoDBClient:
     def batch_write(
         self,
         table: str,
-        put_items: Optional[list[dict[str, Any]]] = None,
-        delete_keys: Optional[list[dict[str, Any]]] = None,
+        put_items: list[dict[str, Any]] | None = None,
+        delete_keys: list[dict[str, Any]] | None = None,
     ) -> None:
         """Batch write items to a DynamoDB table.
 
@@ -391,13 +391,13 @@ class DynamoDBClient:
         self,
         table_name: str,
         hash_key: tuple[str, str],
-        range_key: Optional[tuple[str, str]] = None,
+        range_key: tuple[str, str] | None = None,
         billing_mode: str = "PAY_PER_REQUEST",
-        read_capacity: Optional[int] = None,
-        write_capacity: Optional[int] = None,
-        table_class: Optional[str] = None,
-        encryption: Optional[str] = None,
-        kms_key_id: Optional[str] = None,
+        read_capacity: int | None = None,
+        write_capacity: int | None = None,
+        table_class: str | None = None,
+        encryption: str | None = None,
+        kms_key_id: str | None = None,
         wait: bool = False,
     ) -> None:
         """Create a new DynamoDB table.
@@ -477,7 +477,7 @@ class DynamoDBClient:
     def wait_for_table_active(
         self,
         table_name: str,
-        timeout_seconds: Optional[int] = None,
+        timeout_seconds: int | None = None,
     ) -> None:
         """Wait for a table to become active.
 

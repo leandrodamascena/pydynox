@@ -1,7 +1,6 @@
 """Integration tests for item size calculator with Model."""
 
 import pytest
-
 from pydynox import Model, ModelConfig
 from pydynox.attributes import ListAttribute, MapAttribute, NumberAttribute, StringAttribute
 from pydynox.exceptions import ItemTooLargeError

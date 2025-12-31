@@ -1,6 +1,8 @@
 """Query result and pagination."""
 
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any, Callable
 
 if TYPE_CHECKING:
     from pydynox import pydynox_core
@@ -23,17 +25,17 @@ class QueryResult:
 
     def __init__(
         self,
-        client: "pydynox_core.DynamoClient",
+        client: pydynox_core.DynamoDBClient,
         table: str,
         key_condition_expression: str,
-        filter_expression: Optional[str] = None,
-        expression_attribute_names: Optional[dict[str, str]] = None,
-        expression_attribute_values: Optional[dict[str, Any]] = None,
-        limit: Optional[int] = None,
-        scan_index_forward: Optional[bool] = None,
-        index_name: Optional[str] = None,
-        last_evaluated_key: Optional[dict[str, Any]] = None,
-        acquire_rcu: Optional[Callable[[float], None]] = None,
+        filter_expression: str | None = None,
+        expression_attribute_names: dict[str, str] | None = None,
+        expression_attribute_values: dict[str, Any] | None = None,
+        limit: int | None = None,
+        scan_index_forward: bool | None = None,
+        index_name: str | None = None,
+        last_evaluated_key: dict[str, Any] | None = None,
+        acquire_rcu: Callable[[float], None] | None = None,
     ):
         self._client = client
         self._table = table
@@ -49,12 +51,12 @@ class QueryResult:
 
         self._current_page: list[dict[str, Any]] = []
         self._page_index = 0
-        self._last_evaluated_key: Optional[dict[str, Any]] = None
+        self._last_evaluated_key: dict[str, Any] | None = None
         self._exhausted = False
         self._first_fetch = True
 
     @property
-    def last_evaluated_key(self) -> Optional[dict[str, Any]]:
+    def last_evaluated_key(self) -> dict[str, Any] | None:
         """The last evaluated key for pagination.
 
         Returns None if all results have been fetched.

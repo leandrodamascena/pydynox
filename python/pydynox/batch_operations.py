@@ -1,5 +1,7 @@
 """Batch operations for DynamoDB."""
 
+from __future__ import annotations
+
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -20,7 +22,7 @@ class BatchWriter:
         ...     batch.delete({"pk": "USER#3", "sk": "PROFILE"})
     """
 
-    def __init__(self, client: "DynamoDBClient", table: str):
+    def __init__(self, client: DynamoDBClient, table: str):
         """Create a BatchWriter.
 
         Args:
@@ -32,11 +34,13 @@ class BatchWriter:
         self._put_items: list[dict[str, Any]] = []
         self._delete_keys: list[dict[str, Any]] = []
 
-    def __enter__(self) -> "BatchWriter":
+    def __enter__(self) -> BatchWriter:
         """Enter the context manager."""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(
+        self, exc_type: type[BaseException] | None, exc_val: BaseException | None, exc_tb: Any
+    ) -> None:
         """Exit the context manager and send all operations."""
         if exc_type is None:
             self.flush()

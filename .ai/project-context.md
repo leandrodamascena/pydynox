@@ -64,10 +64,13 @@ pydynox/
 │   ├── client.py          # DynamoDBClient wrapper
 │   ├── attributes.py      # Field types
 │   ├── exceptions.py      # Custom exceptions
+│   ├── _internal/         # Internal helpers
+│   │   ├── _compression.py # Compression functions
+│   │   └── _encryption.py  # Encryption functions
 │   └── integrations/      # Pydantic, etc.
 ├── tests/
 │   ├── integration/       # Integration tests (need moto server)
-│   └── python/            # Unit tests
+│   └── unit/              # Unit tests
 ├── Cargo.toml             # Rust dependencies
 └── pyproject.toml         # Python config
 ```
@@ -86,15 +89,15 @@ The public API is what users import from `pydynox`. Keep it small and clean.
 
 ### What Stays Internal
 
-- Compression functions (`_compression.py`)
-- Encryption functions (`_encryption.py`)
+- Compression functions (`_internal/_compression.py`)
+- Encryption functions (`_internal/_encryption.py`)
 - Serialization helpers
 - Size calculation internals
 
 ### Naming Convention
 
 - Public modules: `model.py`, `client.py`, `query.py`
-- Internal modules: `_compression.py`, `_encryption.py`
+- Internal modules: `_internal/_compression.py`, `_internal/_encryption.py`
 - Internal folder: `_internal/`
 
 ## Lambda Cold Start Note

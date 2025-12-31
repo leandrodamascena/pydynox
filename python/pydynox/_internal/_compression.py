@@ -1,5 +1,7 @@
 """Internal compression functions. Do not use directly."""
 
+from __future__ import annotations
+
 from pydynox import pydynox_core
 
 CompressionAlgorithm = pydynox_core.CompressionAlgorithm

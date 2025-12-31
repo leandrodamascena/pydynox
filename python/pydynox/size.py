@@ -11,6 +11,8 @@ Example:
     ...     print("Too big!")
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -130,7 +132,7 @@ def calculate_null_size() -> int:
     return 1
 
 
-def calculate_list_size(value: list) -> int:
+def calculate_list_size(value: list[Any]) -> int:
     """Calculate size of a list attribute.
 
     List overhead: 3 bytes + size of each element.
@@ -147,7 +149,7 @@ def calculate_list_size(value: list) -> int:
     return size
 
 
-def calculate_map_size(value: dict) -> int:
+def calculate_map_size(value: dict[str, Any]) -> int:
     """Calculate size of a map attribute.
 
     Map overhead: 3 bytes + size of each key-value pair.
@@ -166,7 +168,7 @@ def calculate_map_size(value: dict) -> int:
     return size
 
 
-def calculate_set_size(value: set, element_type: str = "S") -> int:
+def calculate_set_size(value: set[Any], element_type: str = "S") -> int:
     """Calculate size of a set attribute.
 
     Set overhead: 3 bytes + size of each element.

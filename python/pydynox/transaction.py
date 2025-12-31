@@ -1,6 +1,8 @@
 """Transaction operations for DynamoDB."""
 
-from typing import TYPE_CHECKING, Any, Optional
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from pydynox.client import DynamoDBClient
@@ -37,7 +39,7 @@ class Transaction:
         ...     )
     """
 
-    def __init__(self, client: "DynamoDBClient"):
+    def __init__(self, client: DynamoDBClient):
         """Create a Transaction.
 
         Args:
@@ -46,11 +48,16 @@ class Transaction:
         self._client = client
         self._operations: list[dict[str, Any]] = []
 
-    def __enter__(self) -> "Transaction":
+    def __enter__(self) -> Transaction:
         """Enter the context manager."""
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: Any,
+    ) -> None:
         """Exit the context manager and execute the transaction."""
         if exc_type is None:
             self.commit()
@@ -59,9 +66,9 @@ class Transaction:
         self,
         table: str,
         item: dict[str, Any],
-        condition_expression: Optional[str] = None,
-        expression_attribute_names: Optional[dict[str, str]] = None,
-        expression_attribute_values: Optional[dict[str, Any]] = None,
+        condition_expression: str | None = None,
+        expression_attribute_names: dict[str, str] | None = None,
+        expression_attribute_values: dict[str, Any] | None = None,
     ) -> None:
         """Add a put operation to the transaction.
 
@@ -89,9 +96,9 @@ class Transaction:
         self,
         table: str,
         key: dict[str, Any],
-        condition_expression: Optional[str] = None,
-        expression_attribute_names: Optional[dict[str, str]] = None,
-        expression_attribute_values: Optional[dict[str, Any]] = None,
+        condition_expression: str | None = None,
+        expression_attribute_names: dict[str, str] | None = None,
+        expression_attribute_values: dict[str, Any] | None = None,
     ) -> None:
         """Add a delete operation to the transaction.
 
@@ -120,9 +127,9 @@ class Transaction:
         table: str,
         key: dict[str, Any],
         update_expression: str,
-        condition_expression: Optional[str] = None,
-        expression_attribute_names: Optional[dict[str, str]] = None,
-        expression_attribute_values: Optional[dict[str, Any]] = None,
+        condition_expression: str | None = None,
+        expression_attribute_names: dict[str, str] | None = None,
+        expression_attribute_values: dict[str, Any] | None = None,
     ) -> None:
         """Add an update operation to the transaction.
 
@@ -153,8 +160,8 @@ class Transaction:
         table: str,
         key: dict[str, Any],
         condition_expression: str,
-        expression_attribute_names: Optional[dict[str, str]] = None,
-        expression_attribute_values: Optional[dict[str, Any]] = None,
+        expression_attribute_names: dict[str, str] | None = None,
+        expression_attribute_values: dict[str, Any] | None = None,
     ) -> None:
         """Add a condition check to the transaction.
 
