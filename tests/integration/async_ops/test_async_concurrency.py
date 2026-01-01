@@ -97,7 +97,7 @@ async def test_concurrent_operations_faster_than_sequential(async_table: DynamoD
     concurrent_time = time.perf_counter() - start_conc
 
     # Concurrent should be faster (at least 1.5x for this test)
-    # Note: with moto locally the difference might be smaller
+    # Note: with DynamoDB Local the difference might be smaller
     assert concurrent_time < sequential_time, "Concurrent should be faster than sequential"
 
 
