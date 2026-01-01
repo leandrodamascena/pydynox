@@ -67,14 +67,14 @@ jobs:
         run: |
           source .venv/bin/activate
           pip install dist/*.whl
-          pip install pytest pytest-asyncio hypothesis "moto[dynamodb,server]" boto3 pydantic mypy
+          pip install pytest pytest-asyncio hypothesis testcontainers boto3 pydantic mypy
 
       - name: Install wheel and dependencies (Windows)
         if: runner.os == 'Windows'
         run: |
           .venv\Scripts\activate
           pip install (Get-ChildItem dist\*.whl)
-          pip install pytest pytest-asyncio hypothesis "moto[dynamodb,server]" boto3 pydantic mypy
+          pip install pytest pytest-asyncio hypothesis testcontainers boto3 pydantic mypy
 
       - name: Mypy (Unix)
         if: runner.os != 'Windows'
@@ -125,7 +125,7 @@ jobs:
         run: |
           source .venv/bin/activate
           pip install dist/*.whl
-          pip install pytest pytest-asyncio pytest-cov hypothesis "moto[dynamodb,server]" boto3 pydantic
+          pip install pytest pytest-asyncio pytest-cov hypothesis testcontainers boto3 pydantic
 
       - name: Run tests with coverage
         run: |
