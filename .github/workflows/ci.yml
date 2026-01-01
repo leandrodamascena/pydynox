@@ -46,6 +46,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Docker (macOS)
+        if: runner.os == 'macOS'
+        uses: douglascamata/setup-docker-macos-action@v1-alpha
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -62,42 +66,20 @@ jobs:
           args: --release --out dist
           sccache: true
 
-      - name: Install wheel and dependencies (Unix)
-        if: runner.os != 'Windows'
+      - name: Install wheel and dependencies
         run: |
           source .venv/bin/activate
           pip install dist/*.whl
           pip install pytest pytest-asyncio hypothesis testcontainers boto3 pydantic mypy
 
-      - name: Install wheel and dependencies (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          .venv\Scripts\activate
-          pip install (Get-ChildItem dist\*.whl)
-          pip install pytest pytest-asyncio hypothesis testcontainers boto3 pydantic mypy
-
-      - name: Mypy (Unix)
-        if: runner.os != 'Windows'
+      - name: Mypy
         run: |
           source .venv/bin/activate
           mypy python/pydynox/
 
-      - name: Mypy (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          .venv\Scripts\activate
-          mypy python/pydynox/
-
-      - name: Run tests (Unix)
-        if: runner.os != 'Windows'
+      - name: Run tests
         run: |
           source .venv/bin/activate
-          pytest tests/ -v --ignore=tests/benchmark
-
-      - name: Run tests (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          .venv\Scripts\activate
           pytest tests/ -v --ignore=tests/benchmark
 
   coverage:
