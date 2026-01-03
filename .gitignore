@@ -3,6 +3,7 @@
 **/*.rs.bk
 
 site/
+ADR/
 
 # Python
 __pycache__/

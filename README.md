@@ -8,9 +8,7 @@
 
 A fast DynamoDB ORM for Python with a Rust core.
 
-> ⚠️ **Early Development**: This project is not ready for production yet. The API may change before v1.0.
->
-> We welcome feedback and contributions! Check the [open issues](https://github.com/leandrodamascena/pydynox/issues) to see what's planned or to share your ideas.
+> **Pre-release**: The core features are working and tested. We're adding features, polishing the API, receiving ideas, and testing performance and edge cases before v1.0. Feel free to try it out and share feedback!
 
 ## Why "pydynox"?
 
