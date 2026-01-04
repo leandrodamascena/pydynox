@@ -14,6 +14,8 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   UV_FROZEN: "1"
+  CARGO_PROFILE_RELEASE_DEBUG: "line-tables-only"
+  CARGO_PROFILE_RELEASE_STRIP: "false"
 
 jobs:
   codspeed:
@@ -41,13 +43,18 @@ jobs:
       - name: Set up Python 3.12
         run: uv python install 3.12
 
+      - name: Install Rust with llvm-tools
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: llvm-tools
+
       - name: Create venv and install dependencies
         run: |
           uv venv --python 3.12
           uv pip install maturin pytest pytest-asyncio pytest-codspeed hypothesis "moto[dynamodb,server]" boto3 pydantic pynamodb testcontainers
 
       - name: Build and install pydynox
-        run: uv run maturin develop
+        run: uv run maturin develop --release
 
       - name: Run benchmarks
         uses: CodSpeedHQ/action@v4.5.1
