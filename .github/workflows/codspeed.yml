@@ -49,7 +49,7 @@ jobs:
 
       - name: Install dependencies and wheel
         run: |
-          uv pip install pytest pytest-asyncio pytest-codspeed hypothesis "moto[dynamodb,server]" boto3 pydantic pynamodb
+          uv pip install pytest pytest-asyncio pytest-codspeed hypothesis "moto[dynamodb,server]" boto3 pydantic pynamodb testcontainers
           uv pip install dist/pydynox-*.whl --force-reinstall --no-deps
 
       - name: Run benchmarks
@@ -57,3 +57,9 @@ jobs:
         with:
           mode: simulation
           run: uv run pytest --ignore=tests/benchmark --codspeed
+
+      - name: Run memory tests (codspeed)
+        uses: CodSpeedHQ/action@v4.5.1
+        with:
+          mode: simulation
+          run: uv run pytest tests/memory/ --codspeed
