@@ -31,6 +31,7 @@ nav = [
         "guides/hooks.md",
         "guides/auto-generate.md",
         "guides/rate-limiting.md",
+        "guides/optimistic-locking.md",
         "guides/encryption.md",
         "guides/size-calculator.md",
     ] },

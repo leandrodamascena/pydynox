@@ -121,6 +121,11 @@ jobs:
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
 
+  docs:
+    name: Deploy Documentation
+    needs: publish
+    uses: ./.github/workflows/docs.yml
+
   # github-release:
   #   name: Create GitHub Release
   #   needs: [build-linux, build-musllinux, build-macos, build-sdist]

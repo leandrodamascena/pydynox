@@ -12,6 +12,7 @@ pydynox lets you work with DynamoDB using Python classes instead of raw dictiona
 - **Rate limiting** - Control throughput to avoid throttling
 - **Lifecycle hooks** - Run code before/after operations
 - **TTL support** - Auto-delete items after expiration
+- **Native async** - Built-in async/await support
 - **Pydantic integration** - Use your existing Pydantic models
 
 ## Getting started
@@ -85,8 +86,11 @@ Now that you have the basics, explore these guides:
 |-------|-------------|
 | [Lifecycle hooks](guides/hooks.md) | Run code before/after operations |
 | [Rate limiting](guides/rate-limiting.md) | Control throughput |
+| [TTL](guides/ttl.md) | Auto-delete items after expiration |
+| [Optimistic locking](guides/optimistic-locking.md) | Prevent concurrent update conflicts |
 | [Encryption](guides/encryption.md) | Field-level encryption with KMS |
 | [Size calculator](guides/size-calculator.md) | Calculate item sizes |
+| [PartiQL](guides/partiql.md) | SQL-like queries for DynamoDB |
 
 ### Integrations
 
