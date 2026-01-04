@@ -7,7 +7,9 @@ from typing import TYPE_CHECKING, Any, ClassVar, Generic, TypeVar
 
 from pydynox._internal._atomic import AtomicOp, serialize_atomic
 from pydynox._internal._metrics import OperationMetrics
-from pydynox.attributes import Attribute, TTLAttribute
+from pydynox.attributes import Attribute
+from pydynox.attributes.ttl import TTLAttribute
+from pydynox.attributes.version import VersionAttribute
 from pydynox.client import DynamoDBClient
 from pydynox.config import ModelConfig, get_default_client
 from pydynox.exceptions import ItemTooLargeError
@@ -659,6 +661,8 @@ class Model(metaclass=ModelMeta):
 
         Creates a new item or replaces an existing one.
         Auto-generates values for attributes with AutoGenerate defaults.
+        If the model has a VersionAttribute, it auto-increments and adds
+        a condition to prevent concurrent overwrites.
 
         Args:
             condition: Optional condition that must be true for the write.
@@ -666,7 +670,8 @@ class Model(metaclass=ModelMeta):
 
         Raises:
             ItemTooLargeError: If max_size is set and item exceeds it.
-            ConditionCheckFailedError: If the condition is not met.
+            ConditionCheckFailedError: If the condition is not met, or if
+                optimistic locking fails (version mismatch).
 
         Example:
             >>> user = User(pk="USER#123", sk="PROFILE", name="John")
@@ -690,6 +695,22 @@ class Model(metaclass=ModelMeta):
         # Apply auto-generate strategies before saving
         self._apply_auto_generate()
 
+        # Handle optimistic locking
+        version_attr = self._get_version_attr_name()
+        version_condition, new_version = self._build_version_condition()
+
+        # Combine user condition with version condition
+        final_condition = condition
+        if version_condition is not None:
+            if final_condition is not None:
+                final_condition = final_condition & version_condition
+            else:
+                final_condition = version_condition
+
+        # Set new version before saving
+        if version_attr is not None:
+            setattr(self, version_attr, new_version)
+
         # Check size if max_size is set
         max_size = (
             getattr(self.model_config, "max_size", None) if hasattr(self, "model_config") else None
@@ -708,10 +729,10 @@ class Model(metaclass=ModelMeta):
         item = self.to_dict()
 
         # Serialize condition if provided
-        if condition is not None:
+        if final_condition is not None:
             names: dict[str, str] = {}
             values: dict[str, Any] = {}
-            expr = condition.serialize(names, values)
+            expr = final_condition.serialize(names, values)
             # Invert names dict for DynamoDB format
             attr_names = {v: k for k, v in names.items()}
             client.put_item(
@@ -730,34 +751,57 @@ class Model(metaclass=ModelMeta):
     def delete(self, condition: Condition | None = None, skip_hooks: bool | None = None) -> None:
         """Delete the model from DynamoDB.
 
+        If the model has a VersionAttribute, it adds a condition to ensure
+        the version matches before deleting.
+
         Args:
             condition: Optional condition that must be true for the delete.
             skip_hooks: Skip hooks for this operation. If None, uses model_config.skip_hooks.
 
         Raises:
-            ConditionCheckFailedError: If the condition is not met.
+            ConditionCheckFailedError: If the condition is not met, or if
+                optimistic locking fails (version mismatch).
 
         Example:
             >>> user = User.get(pk="USER#123", sk="PROFILE")
             >>> user.delete()
 
-            >>> # Only delete if version matches
-            >>> user.delete(condition=User.version == 5)
+            >>> # Only delete if version matches (automatic with VersionAttribute)
+            >>> user.delete()
         """
         skip = self._should_skip_hooks(skip_hooks)
 
         if not skip:
             self._run_hooks(HookType.BEFORE_DELETE)
 
+        # Handle optimistic locking for delete
+        version_attr = self._get_version_attr_name()
+        version_condition: Condition | None = None
+        if version_attr is not None:
+            current_version: int | None = getattr(self, version_attr, None)
+            if current_version is not None:
+                from pydynox._internal._conditions import ConditionPath
+
+                path = ConditionPath(path=[version_attr])
+                version_condition = path == current_version
+
+        # Combine user condition with version condition
+        final_condition = condition
+        if version_condition is not None:
+            if final_condition is not None:
+                final_condition = final_condition & version_condition
+            else:
+                final_condition = version_condition
+
         client = self._get_client()
         table = self._get_table()
         key = self._get_key()
 
         # Serialize condition if provided
-        if condition is not None:
+        if final_condition is not None:
             names: dict[str, str] = {}
             values: dict[str, Any] = {}
-            expr = condition.serialize(names, values)
+            expr = final_condition.serialize(names, values)
             attr_names = {v: k for k, v in names.items()}
             client.delete_item(
                 table,
@@ -963,6 +1007,36 @@ class Model(metaclass=ModelMeta):
                 return attr_name
         return None
 
+    def _get_version_attr_name(self) -> str | None:
+        """Find the VersionAttribute field name if one exists."""
+        for attr_name, attr in self._attributes.items():
+            if isinstance(attr, VersionAttribute):
+                return attr_name
+        return None
+
+    def _build_version_condition(self) -> tuple[Condition | None, int]:
+        """Build version condition for optimistic locking.
+
+        Returns:
+            Tuple of (condition, new_version).
+            condition is None for new items (version will be 1).
+        """
+        from pydynox._internal._conditions import ConditionPath
+
+        version_attr = self._get_version_attr_name()
+        if version_attr is None:
+            return None, 0
+
+        current_version: int | None = getattr(self, version_attr, None)
+        path = ConditionPath(path=[version_attr])
+
+        if current_version is None:
+            # New item: version = 1, condition = attribute_not_exists
+            return path.does_not_exist(), 1
+        else:
+            # Existing item: version + 1, condition = version == current
+            return path == current_version, current_version + 1
+
     @property
     def is_expired(self) -> bool:
         """Check if the TTL has passed.
@@ -1143,6 +1217,22 @@ class Model(metaclass=ModelMeta):
         # Apply auto-generate strategies before saving
         self._apply_auto_generate()
 
+        # Handle optimistic locking
+        version_attr = self._get_version_attr_name()
+        version_condition, new_version = self._build_version_condition()
+
+        # Combine user condition with version condition
+        final_condition = condition
+        if version_condition is not None:
+            if final_condition is not None:
+                final_condition = final_condition & version_condition
+            else:
+                final_condition = version_condition
+
+        # Set new version before saving
+        if version_attr is not None:
+            setattr(self, version_attr, new_version)
+
         # Check size if max_size is set
         max_size = (
             getattr(self.model_config, "max_size", None) if hasattr(self, "model_config") else None
@@ -1160,10 +1250,10 @@ class Model(metaclass=ModelMeta):
         table = self._get_table()
         item = self.to_dict()
 
-        if condition is not None:
+        if final_condition is not None:
             names: dict[str, str] = {}
             values: dict[str, Any] = {}
-            expr = condition.serialize(names, values)
+            expr = final_condition.serialize(names, values)
             attr_names = {v: k for k, v in names.items()}
             await client.async_put_item(
                 table,
@@ -1196,14 +1286,33 @@ class Model(metaclass=ModelMeta):
         if not skip:
             self._run_hooks(HookType.BEFORE_DELETE)
 
+        # Handle optimistic locking for delete
+        version_attr = self._get_version_attr_name()
+        version_condition: Condition | None = None
+        if version_attr is not None:
+            current_version: int | None = getattr(self, version_attr, None)
+            if current_version is not None:
+                from pydynox._internal._conditions import ConditionPath
+
+                path = ConditionPath(path=[version_attr])
+                version_condition = path == current_version
+
+        # Combine user condition with version condition
+        final_condition = condition
+        if version_condition is not None:
+            if final_condition is not None:
+                final_condition = final_condition & version_condition
+            else:
+                final_condition = version_condition
+
         client = self._get_client()
         table = self._get_table()
         key = self._get_key()
 
-        if condition is not None:
+        if final_condition is not None:
             names: dict[str, str] = {}
             values: dict[str, Any] = {}
-            expr = condition.serialize(names, values)
+            expr = final_condition.serialize(names, values)
             attr_names = {v: k for k, v in names.items()}
             await client.async_delete_item(
                 table,

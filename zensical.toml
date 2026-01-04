@@ -29,8 +29,11 @@ nav = [
         "guides/hooks.md",
         "guides/auto-generate.md",
         "guides/rate-limiting.md",
+        "guides/ttl.md",
+        "guides/optimistic-locking.md",
         "guides/encryption.md",
         "guides/size-calculator.md",
+        "guides/partiql.md",
     ] },
     { "Integrations" = [
         "guides/pydantic.md",
